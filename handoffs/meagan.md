@@ -41,44 +41,25 @@ We are *wayfinding*: charting decisions on a shared map before anyone builds. Th
 
 To read a research file: `git fetch origin research/aca-dmi-rules` then `git show origin/research/aca-dmi-rules:research/aca-dmi-rules.md` (same pattern for the compliance branch). Never merge or open a PR from a `research/` branch.
 
-## One-time setup (about 10 minutes)
+## One-time setup (about 10 minutes, almost no terminal)
 
-### 1. Connect to GitHub
-1. **Have a GitHub account.** Use an existing one or create one at https://github.com/signup. Send your **GitHub username** to Andrew.
-2. **Accept the collaborator invitation.** Andrew adds you to `arathianevasion/Hackathon`. GitHub emails you an invitation; accept it at https://github.com/arathianevasion/Hackathon/invitations. Without this you can read the repo but cannot assign tickets or edit issues.
-3. **Install the GitHub CLI (`gh`).** On a Mac: `brew install gh`. Other systems: https://cli.github.com
-4. **Sign in with `gh`:**
-   ```
-   gh auth login
-   ```
-   Choose GitHub.com, HTTPS, "Login with a web browser", and sign in as your own account. Make sure you sign in as yourself, not as Andrew's account, so tickets are assigned to you.
-5. **Check it worked:**
-   ```
-   gh auth status
-   gh issue view 1 --repo arathianevasion/Hackathon
-   ```
-   The first should show your username as logged in. The second should print the map issue. If either fails, stop and tell Andrew.
-6. **Set your git identity** if you have not before:
-   ```
-   git config --global user.name "Your Name"
-   git config --global user.email "your-github-email"
-   ```
+You do three things yourself, then paste one prompt and let Claude do the rest.
 
-### 2. Get the repo
-```
-git clone https://github.com/arathianevasion/Hackathon
-cd Hackathon
-```
+### 1. Do these yourself
+1. **GitHub account and invitation.** Use an existing account or create one at https://github.com/signup. Send your **GitHub username** to Andrew. He adds you to the project, and GitHub emails you an invitation. Accept it at https://github.com/arathianevasion/Hackathon/invitations. Without it you can read the repo but cannot claim or edit tickets.
+2. **Git.** Git is installed automatically the first time it is needed; if macOS asks to install the command line developer tools, click Install.
+3. **Make an empty folder** called `Hackathon` anywhere you like, and open that folder in the Claude desktop app's Code tab.
 
-### 3. Install the skills in Claude Code
-Start Claude Code in the `Hackathon` folder and run:
-```
-/plugin install mattpocock-skills@claude-plugins-official
-```
-`CLAUDE.md` and `docs/agents/` already tell the skills where the issue tracker is, so you do not need to run the setup skill.
+### 2. Paste this setup prompt into Claude
+> Set up this machine for the Hackathon project: check that git and the GitHub CLI (`gh`) are installed and install any that are missing (use Homebrew), walk me through signing in to GitHub in my browser as myself, then clone https://github.com/arathianevasion/Hackathon into this folder. Explain each step in plain language before you run it.
 
-### 4. Save your handoff file
-Put this document at `handoffs/<yourname>.md` in your clone if it is not already there, so your prompt can read it.
+Claude asks your permission before each command; click Approve. When your browser opens for GitHub sign-in, sign in as **yourself**, so tickets are assigned to you. To finish, Claude should show `gh auth status` logged in as you and print the map issue (`gh issue view 1 --repo arathianevasion/Hackathon`). If either fails, stop and tell Andrew.
+
+### 3. Open the cloned project
+Open the cloned `Hackathon` folder in the Claude desktop app. The project asks to install the **mattpocock-skills** plugin; accept. If it does not ask, paste this prompt instead: "Install the mattpocock-skills plugin from the claude-plugins-official marketplace, then reload plugins." Check it worked by typing `/mattpocock-skills:` and seeing `wayfinder` appear.
+
+### 4. Your handoff file
+It is already in the clone at `handoffs/<yourname>.md`.
 
 ## How to work a ticket
 Paste your prompt (given separately) into Claude Code. Claude will:
