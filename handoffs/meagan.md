@@ -41,28 +41,55 @@ We are *wayfinding*: charting decisions on a shared map before anyone builds. Th
 
 To read a research file: `git fetch origin research/aca-dmi-rules` then `git show origin/research/aca-dmi-rules:research/aca-dmi-rules.md` (same pattern for the compliance branch). Never merge or open a PR from a `research/` branch.
 
-## One-time setup (about 10 minutes, almost no terminal)
+## One-time setup (about 15 minutes, no admin rights needed)
 
-You do three things yourself, then paste one prompt and let Claude do the rest.
+Each step says exactly what to paste into Claude. Claude asks before running each command: read its explanation, then click **Approve**.
 
-### 1. Do these yourself
-1. **GitHub account and invitation.** Use an existing account or create one at https://github.com/signup. Send your **GitHub username** to Andrew. He adds you to the project, and GitHub emails you an invitation. Accept it at https://github.com/arathianevasion/Hackathon/invitations. Without it you can read the repo but cannot claim or edit tickets.
-2. **Git.** Git is installed automatically the first time it is needed; if macOS asks to install the command line developer tools, click Install.
-3. **Make an empty folder** called `Hackathon` anywhere you like, and open that folder in the Claude desktop app's Code tab.
+### 1. GitHub account and invitation (on your own)
+1. Use an existing GitHub account or create one at https://github.com/signup.
+2. Send your **GitHub username** to Andrew. He adds you to the project and GitHub emails you an invitation.
+3. Accept it at https://github.com/arathianevasion/Hackathon/invitations. Without it you can read the repo but cannot claim or edit tickets.
 
-### 2. Paste this setup prompt into Claude
-> Set up this machine for the Hackathon project: check that git and the GitHub CLI (`gh`) are installed and install any that are missing (use Homebrew), walk me through signing in to GitHub in my browser as myself, then clone https://github.com/arathianevasion/Hackathon into this folder. Explain each step in plain language before you run it.
+### 2. Open an empty folder in Claude
+Make an empty folder called `Hackathon` anywhere you like (for example in Documents) and open it in the Claude desktop app's **Code** tab.
 
-Claude asks your permission before each command; click Approve. When your browser opens for GitHub sign-in, sign in as **yourself**, so tickets are assigned to you. To finish, Claude should show `gh auth status` logged in as you and print the map issue (`gh issue view 1 --repo arathianevasion/Hackathon`). If either fails, stop and tell Andrew.
+### 3. Check what is installed
+Paste:
 
-### 3. Open the cloned project
-Open the cloned `Hackathon` folder in the Claude desktop app. The project asks to install the **mattpocock-skills** plugin; accept. If it does not ask, paste this prompt instead: "Install the mattpocock-skills plugin from the claude-plugins-official marketplace, then reload plugins." Check it worked by typing `/mattpocock-skills:` and seeing `wayfinder` appear.
+> Check my setup for the Hackathon project. Run `git --version`, `gh --version`, and `id -Gn`, then tell me in plain language which tools are installed and whether I appear to have admin rights. Don't install or change anything.
 
-### 4. Your handoff file
-It is already in the clone at `handoffs/<yourname>.md`.
+### 4. Install anything missing
+- **Both installed:** skip to the next step.
+- **Git missing:** macOS may pop up an offer to install "command line developer tools". If it asks for an admin password you don't have, click Cancel and install Git from **Self Service** (or ask IT). Then paste the check prompt again.
+- **`gh` missing:** paste:
+
+> Install the GitHub CLI (`gh`) for my user only, without admin rights and without Homebrew: download the latest macOS zip for this Mac's chip from https://github.com/cli/cli/releases, put the `gh` program in `~/bin`, add `~/bin` to my PATH in `~/.zshrc`, and confirm `gh --version` works. Explain each step in plain language before you run it.
+
+### 5. Sign in to GitHub and get the project
+Paste:
+
+> Sign me in to GitHub with the GitHub CLI using my browser: run `gh auth login --hostname github.com --git-protocol https --web`. If it shows a one-time code, give me the code and the link https://github.com/login/device so I can enter it there. Then run `gh auth setup-git`, and confirm `gh auth status` shows my own username. If my git name and email aren't set, ask me for them and set them. Then clone the project into this folder with `git clone https://github.com/arathianevasion/Hackathon .` and run `gh issue view 1 --repo arathianevasion/Hackathon` to prove I can see the map.
+
+In the browser, sign in as **yourself**, so tickets are assigned to you. If `gh auth status` or the last command fails, stop and tell Andrew.
+
+### 6. Turn on the skills
+Start a **new** Claude session in the same `Hackathon` folder. The project should ask to install the **mattpocock-skills** plugin: accept. If it doesn't ask, paste:
+
+> Install the mattpocock-skills plugin from the claude-plugins-official marketplace (GitHub repo anthropics/claude-plugins-official) for my user, then tell me how to reload so the skills appear.
+
+Check it worked: type `/mattpocock-skills:` and you should see `wayfinder` in the list.
+
+### 7. Start your ticket
+Paste your wayfinder prompt from **How to work a ticket** below.
 
 ## How to work a ticket
-Paste your prompt (given separately) into Claude Code. Claude will:
+Paste this into Claude Code, in a session opened on the cloned `Hackathon` folder:
+
+```
+/mattpocock-skills:wayfinder https://github.com/arathianevasion/Hackathon/issues/1 Work ticket #5 (Synthetic data model and scenario set). Read handoffs/meagan.md first for context and what a good answer looks like. Claim the ticket before doing anything, grill me one round at a time, and show me the draft resolution before you close it.
+```
+
+Claude will:
 1. Claim your ticket by assigning it to you, before any other work.
 2. Interview you ("grilling") in numbered questions with a recommended answer each. You answer; Claude does not answer for you. Answer "yes" to accept a recommendation.
 3. Draft a resolution and show it to you **before** closing anything.
