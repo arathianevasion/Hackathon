@@ -51,7 +51,11 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 
 /* ---------- Variant A: ranked queue + detail ---------- */
 .a-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px }
-.a-stat { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px }
+.a-stat { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px; text-align: left; display: grid; gap: 2px }
+.a-stat:hover { border-color: var(--accent) }
+.a-stat[aria-pressed="true"] { border: 2px solid var(--accent); padding: 11px; background: var(--accent-soft) }
+.a-filter-note { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: -6px 0 10px }
+.a-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap }
 .a-stat .n { font-family: var(--display); font-size: 26px; font-weight: 600 }
 .a-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start }
 @media (max-width: 860px) { .a-grid { grid-template-columns: minmax(0, 1fr) } }
@@ -183,6 +187,13 @@ const notifications = [
 ];
 const handled = new Set();
 let selected = 1;
+let filter = 'all'; // all | needs | working | due14 | resolved
+const FILTERS = {
+  needs:    ['Needs you',              c => c.esc && !handled.has(c.id), 'var(--crit)'],
+  working:  ['Assistant working',      c => c.stage !== 'resolved' && !(c.esc && !handled.has(c.id)), 'var(--fg)'],
+  due14:    ['Due in 14 days',         c => c.stage !== 'resolved' && c.days <= 14, 'var(--warn)'],
+  resolved: ['Resolved, last 30 days', c => c.stage === 'resolved', 'var(--ok)'],
+};
 
 const open = () => clients.filter(c => c.stage !== 'resolved');
 const escalations = () => clients.filter(c => c.esc && !handled.has(c.id));
@@ -199,8 +210,13 @@ const byUrgency = (a, b) => (b.esc && !handled.has(b.id)) - (a.esc && !handled.h
 
 // ---------- Variant A: ranked queue + detail panel ----------
 function variantA() {
+  const visible = [...clients].filter(filter === 'all' ? () => true : FILTERS[filter][1]).sort(byUrgency);
+  if (visible.length && !visible.some(x => x.id === selected)) selected = visible[0].id;
   const c = clients.find(x => x.id === selected);
-  const rows = [...clients].sort(byUrgency).map(x => `
+  const tiles = Object.entries(FILTERS).map(([k, [label, fn, color]]) => `
+      <button class="a-stat" data-filter="${k}" aria-pressed="${filter === k}"><span class="label">${label}</span>
+        <span class="n num" style="color:${color}">${clients.filter(fn).length}</span></button>`).join('');
+  const rows = visible.map(x => `
     <div class="row ${x.id === selected ? 'sel' : ''}" tabindex="0" data-sel="${x.id}">
       <span class="stripe ${stripe(x)}"></span>
       <span><b>${x.name}</b></span>
@@ -216,19 +232,18 @@ function variantA() {
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" data-handle="${c.id}">Mark handled</button><button>Take over thread</button></div></div>` : '';
   const thread = c.thread ? `<div><div class="label">Thread</div><div class="thread">${c.thread.map(([who, t]) => `<div class="bubble ${who}">${t}</div>`).join('')}</div></div>` : '';
   return `
-    <div class="a-stats">
-      <div class="a-stat"><div class="label">Needs you</div><div class="n num" style="color:var(--crit)">${escalations().length}</div></div>
-      <div class="a-stat"><div class="label">Assistant working</div><div class="n num">${open().filter(x => !x.esc || handled.has(x.id)).length}</div></div>
-      <div class="a-stat"><div class="label">Due in 14 days</div><div class="n num" style="color:var(--warn)">${open().filter(x => x.days <= 14).length}</div></div>
-      <div class="a-stat"><div class="label">Resolved, last 30 days</div><div class="n num" style="color:var(--ok)">${clients.filter(x => x.stage === 'resolved').length}</div></div>
-    </div>
+    <div class="a-stats">${tiles}</div>
+    <div class="a-filter-note">${filter === 'all'
+      ? `<span class="muted">Showing all ${clients.length} Clients. Click a total to filter.</span>`
+      : `<span>Showing <b>${FILTERS[filter][0].toLowerCase()}</b> (${visible.length})</span><button data-filter="all">Show all</button>`}</div>
     <div class="a-grid">
       <div class="a-table" role="list">
         <div class="row head"><span></span><span class="label">Client</span><span class="label">DMI</span><span class="label">Status</span><span class="label">Deadline</span></div>
         ${rows}
       </div>
       <aside class="a-detail">
-        <div><h2>${c.name}</h2><div class="muted">${c.dmi} DMI · ${c.days == null ? 'Resolved' : `due ${fmt(new Date(TODAY.getTime() + c.days * dayMs))}, ${c.days} days left`}</div></div>
+        <div class="a-head"><div><h2>${c.name}</h2><div class="muted">${c.dmi} DMI · ${c.days == null ? 'Resolved' : `due ${fmt(new Date(TODAY.getTime() + c.days * dayMs))}, ${c.days} days left`}</div></div>
+          <button title="Opens the Client's record in the CRM. Not built in the POC.">View CRM record ↗</button></div>
         <div><div class="meter" aria-label="Share of the 90-day window used"><span style="width:${pct}%;background:${meterColor}"></span></div>
           <div class="mono muted" style="margin-top:4px">90-day window</div></div>
         ${esc}
@@ -317,6 +332,7 @@ document.addEventListener('keydown', e => {
 });
 document.getElementById('app').addEventListener('click', e => {
   const h = e.target.closest('[data-handle]'); if (h) { handled.add(+h.dataset.handle); render(); return; }
+  const f = e.target.closest('[data-filter]'); if (f) { filter = (f.dataset.filter === filter ? 'all' : f.dataset.filter); render(); return; }
   const r = e.target.closest('[data-sel]'); if (r) { selected = +r.dataset.sel; render(); }
 });
 window.addEventListener('hashchange', render);
