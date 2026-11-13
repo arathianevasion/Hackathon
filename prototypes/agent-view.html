@@ -1,0 +1,324 @@
+<title>Agent View Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* PROTOTYPE (throwaway) for ticket #9 "Agent view". Three structurally different variants of the Agent dashboard,
+   switchable via #variant-a / #variant-b / #variant-c and the floating bar. Synthetic data only.
+   Layout concept: a working tool for a licensed Agent; state is encoded in chips and stripes, summary before detail. */
+:root {
+  --bg: #f4f7f7; --surface: #ffffff; --surface-2: #eaf0f0; --fg: #14211f; --muted: #5b6b68; --line: #d3dddb;
+  --accent: #0f6e66; --accent-soft: #d6ecea;
+  --crit: #b4232a; --crit-soft: #fbe3e3; --warn: #9a5b00; --warn-soft: #fbefd9; --ok: #1d7a3a; --ok-soft: #dff2e5; --info: #3c5a99; --info-soft: #e3eaf7;
+  --bar-bg: #14211f; --bar-fg: #f4f7f7;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1615; --surface: #172120; --surface-2: #1e2a29; --fg: #e3ecea; --muted: #93a6a2; --line: #2c3b39;
+  --accent: #4fc1b5; --accent-soft: #1b3a37;
+  --crit: #ff7a7f; --crit-soft: #3d1c1e; --warn: #f0b45a; --warn-soft: #3a2c14; --ok: #6fd28d; --ok-soft: #173322; --info: #9db6ee; --info-soft: #1d2740;
+  --bar-bg: #e3ecea; --bar-fg: #0f1615; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f1615; --surface: #172120; --surface-2: #1e2a29; --fg: #e3ecea; --muted: #93a6a2; --line: #2c3b39;
+  --accent: #4fc1b5; --accent-soft: #1b3a37;
+  --crit: #ff7a7f; --crit-soft: #3d1c1e; --warn: #f0b45a; --warn-soft: #3a2c14; --ok: #6fd28d; --ok-soft: #173322; --info: #9db6ee; --info-soft: #1d2740;
+  --bar-bg: #e3ecea; --bar-fg: #0f1615; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 96px }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; margin: 0; text-wrap: balance }
+h1 { font-size: 22px } h2 { font-size: 16px } h3 { font-size: 14px }
+.num { font-variant-numeric: tabular-nums }
+.mono { font-family: var(--mono); font-size: 12px }
+.muted { color: var(--muted) }
+.label { text-transform: uppercase; letter-spacing: .06em; font-size: 11px; font-weight: 600; color: var(--muted) }
+button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 6px 10px }
+button:focus-visible, .row:focus-visible, .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface) }
+
+.topbar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; margin-bottom: 16px }
+.proto-note { font-size: 12px; color: var(--muted); max-width: 60ch }
+
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 999px; white-space: nowrap }
+.chip.crit { background: var(--crit-soft); color: var(--crit) } .chip.warn { background: var(--warn-soft); color: var(--warn) }
+.chip.ok { background: var(--ok-soft); color: var(--ok) } .chip.info { background: var(--info-soft); color: var(--info) }
+.chip.work { background: var(--accent-soft); color: var(--accent) } .chip.off { background: var(--surface-2); color: var(--muted) }
+.days { font-family: var(--mono); font-size: 12px; font-weight: 500 }
+.days.crit { color: var(--crit) } .days.warn { color: var(--warn) }
+
+/* ---------- Variant A: ranked queue + detail ---------- */
+.a-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px }
+.a-stat { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px }
+.a-stat .n { font-family: var(--display); font-size: 26px; font-weight: 600 }
+.a-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start }
+@media (max-width: 860px) { .a-grid { grid-template-columns: minmax(0, 1fr) } }
+.a-table { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto }
+.row { display: grid; grid-template-columns: 6px minmax(140px, 1.4fr) 80px minmax(150px, 1.6fr) 90px; gap: 10px; align-items: center;
+  padding: 10px 12px 10px 0; border-top: 1px solid var(--line); cursor: pointer; min-width: 520px }
+.row.head { cursor: default; border-top: 0; padding-block: 8px }
+.row:hover:not(.head), .row.sel { background: var(--surface-2) }
+.stripe { align-self: stretch; border-radius: 0 3px 3px 0 }
+.stripe.crit { background: var(--crit) } .stripe.warn { background: var(--warn) } .stripe.ok { background: var(--ok) } .stripe.none { background: transparent }
+.a-detail { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 14px; position: sticky; top: 16px }
+.meter { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden }
+.meter > span { display: block; height: 100% }
+.handoff { border: 1px solid var(--crit); background: var(--crit-soft); border-radius: 8px; padding: 12px; display: grid; gap: 8px }
+.timeline { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none }
+.timeline li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px }
+.bubble { border-radius: 10px; padding: 8px 10px; max-width: 90%; font-size: 13px }
+.bubble.asst { background: var(--accent-soft) } .bubble.client { background: var(--surface-2); justify-self: end }
+.thread { display: grid; gap: 6px }
+
+/* ---------- Variant B: needs-you inbox ---------- */
+.b-wrap { display: grid; gap: 20px; max-width: 980px }
+.b-cards { display: grid; gap: 12px }
+.b-card { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--crit); border-radius: 8px; padding: 14px 16px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 16px }
+@media (max-width: 640px) { .b-card { grid-template-columns: minmax(0, 1fr) } }
+.b-card.handled { border-left-color: var(--ok); opacity: .7 }
+.b-actions { display: flex; flex-wrap: wrap; gap: 8px; align-content: start; justify-content: flex-end }
+.quote { border-left: 2px solid var(--line); padding-left: 10px; font-style: italic; color: var(--muted) }
+.b-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px }
+@media (max-width: 760px) { .b-two { grid-template-columns: minmax(0, 1fr) } }
+.feed { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 14px }
+.feed-item { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--line) }
+.feed-item:first-child { border-top: 0 }
+details.all { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px }
+details.all summary { cursor: pointer; font-weight: 600 }
+.compact { display: grid; gap: 0; margin-top: 8px }
+.compact div { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); align-items: center }
+
+/* ---------- Variant C: pipeline board ---------- */
+.c-lane { background: var(--crit-soft); border: 1px solid var(--crit); border-radius: 8px; padding: 12px; margin-bottom: 14px }
+.c-lane-cards { display: flex; gap: 10px; overflow-x: auto; padding-top: 8px }
+.c-board { display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 4px }
+.c-col { background: var(--surface-2); border-radius: 8px; padding: 10px; display: grid; gap: 8px; align-content: start; min-height: 120px }
+.c-col h3 { display: flex; justify-content: space-between }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; display: grid; gap: 4px; min-width: 180px }
+.card .who { font-weight: 600 }
+.ticker { position: relative; margin-top: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: grid; gap: 4px }
+.ticker .line { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 8px; font-size: 13px }
+
+/* ---------- Floating switcher (prototype chrome, not part of the design) ---------- */
+.switcher { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 20;
+  display: flex; align-items: center; gap: 6px; background: var(--bar-bg); color: var(--bar-fg); border-radius: 999px; padding: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.25);
+  max-width: calc(100vw - 32px) }
+.switcher button { background: transparent; color: var(--bar-fg); border: 0; border-radius: 999px; padding: 6px 12px; font-size: 16px }
+.switcher button:hover { background: rgba(127,127,127,.25) }
+.switcher .lbl { font-family: var(--mono); font-size: 12px; padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+@media (prefers-reduced-motion: no-preference) { .row, .b-card { transition: background .15s, opacity .2s } }
+</style>
+
+<div class="topbar">
+  <div>
+    <h1 id="title">Your book</h1>
+    <div class="muted" id="subtitle"></div>
+  </div>
+  <p class="proto-note">Prototype for ticket #9. Synthetic Clients only. Buttons are stubs except <b>Mark handled</b>, which updates every variant. Switch layouts with the bar at the bottom or the arrow keys.</p>
+</div>
+<main id="app"></main>
+
+<nav class="switcher" aria-label="Prototype variant switcher">
+  <button id="prev" aria-label="Previous variant">←</button>
+  <span class="lbl" id="vlabel"></span>
+  <button id="next" aria-label="Next variant">→</button>
+</nav>
+
+<script>
+// ---------- Synthetic data (dates relative to the run date) ----------
+const TODAY = new Date(); TODAY.setHours(0,0,0,0);
+const dayMs = 86400000;
+const fmt = d => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+const ago = n => n === 0 ? 'Today' : n === 1 ? 'Yesterday' : `${n}d ago`;
+
+// stage: contacting | waiting | checking | submitted | resolved ; flag: escalation trigger or null
+const clients = [
+  { id: 1, name: 'Rosa Delgado-Finch', dmi: 'Income', days: 10, stage: 'waiting', state: 'Insufficient upload, guidance sent', tone: 'warn',
+    thread: [['asst','Hi Rosa, this is the AI assistant working for your agent, Andrew. The Marketplace needs proof of your 2026 income to keep your premium help. Upload here: portal link.'],
+             ['client','Why do they need this? I already applied.'],
+             ['asst','The Marketplace could not match the income on your application with its records, so it asks for a document. A recent pay stub is the easiest option.'],
+             ['client','Uploaded a photo.'],
+             ['asst','Thanks. Two things to fix: the photo cuts off your name, and the pay period is not visible. Please retake it showing the top of the stub.']],
+    log: [[0,'precheck_document','Insufficient: cropped, missing name and pay period','CR-1041'],[1,'send_text','Answered "why is this needed"','CR-1041'],[2,'send_text','Initial text with portal link','CR-1041']] },
+  { id: 2, name: 'Marcus Whitlow', dmi: 'Income', days: 23, stage: 'waiting', state: 'Escalated: income changed', tone: 'crit',
+    esc: { trigger: 'Income changed, application update needed', summary: 'Started a new job on 1 Oct and expects about $18,000 less this year than the application shows. The Assistant cannot change the application.', quote: 'I switched jobs last month, so my pay is lower now. Does that matter?', next: 'Call Marcus to review and update the projected income with him.' },
+    log: [[0,'escalate_to_agent','Income change reported','CR-1007'],[0,'send_text','Told Marcus his agent will follow up','CR-1007']] },
+  { id: 3, name: 'Priya Anand-Holt', dmi: 'Income', days: 48, stage: 'contacting', state: 'Escalated: no response', tone: 'crit',
+    esc: { trigger: 'No response after initial text and nudge', summary: 'Initial text on day 0 and a nudge on day 3, no reply. The Assistant has paused contact until you decide.', quote: null, next: 'Call Priya, or tell the Assistant to keep trying before the Marketplace warnings.' },
+    log: [[0,'escalate_to_agent','Silent for 7 days','CR-1012'],[4,'send_text','Nudge','CR-1012'],[7,'send_text','Initial text with portal link','CR-1012']] },
+  { id: 4, name: 'Dmitri Okafor', dmi: 'Income', days: 31, stage: 'checking', state: 'Escalated: insufficient twice', tone: 'crit',
+    esc: { trigger: 'Document insufficient twice', summary: 'Uploaded a 2024 W-2, then a bank statement without his name. Both failed the pre-check.', quote: 'This is all I have, I do gig driving now.', next: 'Ask about a gig-work statement or the Annual Income Letter of Explanation.' },
+    log: [[0,'escalate_to_agent','Second insufficient upload','CR-1019'],[0,'precheck_document','Insufficient: no name, not an accepted type','CR-1019'],[2,'precheck_document','Insufficient: stale tax year','CR-1019']] },
+  { id: 5, name: 'Lena Marsh', dmi: 'SSN', days: 5, stage: 'waiting', state: 'Deadline close, nudged yesterday', tone: 'warn',
+    log: [[1,'send_text','Nudge (compressed cadence)','CR-1022'],[2,'send_text','Initial text with portal link','CR-1022']] },
+  { id: 6, name: 'Tomasz Rivera', dmi: 'Citizenship', days: 77, stage: 'contacting', state: 'Escalated: citizenship DMI', tone: 'crit',
+    esc: { trigger: 'Citizenship DMI, always handed to the Agent', summary: 'DMI opened 18 days ago. The Assistant has not contacted Tomasz, per the escalation rules.', quote: null, next: 'Contact Tomasz yourself about proof of citizenship.' },
+    log: [[0,'escalate_to_agent','Citizenship DMI detected','CR-1025']] },
+  { id: 7, name: 'June Albright', dmi: 'Income', days: 39, stage: 'contacting', state: 'Opted out, Assistant stopped', tone: 'off',
+    note: 'June replied STOP. The Assistant will not text her again.',
+    log: [[1,'send_text','Blocked: consent rescinded','CR-1030']] },
+  { id: 8, name: 'Harold Kim', dmi: 'Income', days: null, stage: 'resolved', state: 'Resolved', tone: 'ok', resolvedAgo: 2, log: [[2,'get_dmi_status','Marketplace marked resolved','CR-0988']] },
+  { id: 9, name: 'Bea Santos', dmi: 'SSN', days: null, stage: 'resolved', state: 'Resolved', tone: 'ok', resolvedAgo: 6, log: [[6,'get_dmi_status','Marketplace marked resolved','CR-0971']] },
+  { id: 10, name: 'Ollie Fenwick', dmi: 'Income', days: null, stage: 'resolved', state: 'Resolved', tone: 'ok', resolvedAgo: 12, log: [[12,'get_dmi_status','Marketplace marked resolved','CR-0950']] },
+  { id: 11, name: 'Carmen Ibsen', dmi: 'Income', days: 14, stage: 'submitted', state: 'Submitted, Marketplace reviewing', tone: 'info', log: [[1,'submit_documents','Pay stubs submitted','CR-1033']] },
+  { id: 12, name: 'Wes Thornbury', dmi: 'Income', days: 19, stage: 'checking', state: 'Checking upload', tone: 'work', log: [[0,'precheck_document','Running','CR-1034']] },
+  { id: 13, name: 'Ada Nkemelu', dmi: 'SSN', days: 26, stage: 'waiting', state: 'Answered a question', tone: 'work', log: [[0,'send_text','Explained which SSN documents work','CR-1035']] },
+  { id: 14, name: 'Felix Varga', dmi: 'Income', days: 34, stage: 'contacting', state: 'Initial text sent', tone: 'work', log: [[1,'send_text','Initial text with portal link','CR-1036']] },
+  { id: 15, name: 'Noor Haddad', dmi: 'Income', days: 44, stage: 'submitted', state: 'Submitted, Marketplace reviewing', tone: 'info', log: [[3,'submit_documents','1040 submitted','CR-1037']] },
+  { id: 16, name: 'Grace Pell', dmi: 'Income', days: 52, stage: 'waiting', state: 'Client replied, waiting for upload', tone: 'work', log: [[2,'send_text','Sent portal link again','CR-1038']] },
+  { id: 17, name: 'Sami Lund', dmi: 'SSN', days: 58, stage: 'contacting', state: 'Nudge sent', tone: 'work', log: [[0,'send_text','Nudge','CR-1039']] },
+  { id: 18, name: 'Ivy Castellano', dmi: 'Income', days: 63, stage: 'checking', state: 'Checking upload', tone: 'work', log: [[0,'precheck_document','Running','CR-1040']] },
+  { id: 19, name: 'Theo Marchetti', dmi: 'Income', days: 70, stage: 'contacting', state: 'Initial text sent', tone: 'work', log: [[0,'send_text','Initial text with portal link','CR-1042']] },
+  { id: 20, name: 'Hana Oyelaran', dmi: 'Income', days: 84, stage: 'contacting', state: 'Initial text sent', tone: 'work', log: [[0,'send_text','Initial text with portal link','CR-1043']] },
+];
+const notifications = [
+  [0, 'Carmen Ibsen', 'Documents submitted to the Marketplace'],
+  [1, 'June Albright', 'Opted out. The Assistant stopped texting her.'],
+  [2, 'Harold Kim', 'DMI resolved'],
+  [3, 'Noor Haddad', 'Documents submitted to the Marketplace'],
+  [6, 'Bea Santos', 'DMI resolved'],
+];
+const handled = new Set();
+let selected = 1;
+
+const open = () => clients.filter(c => c.stage !== 'resolved');
+const escalations = () => clients.filter(c => c.esc && !handled.has(c.id));
+const daysCls = d => d == null ? '' : d <= 7 ? 'crit' : d <= 14 ? 'warn' : '';
+const deadline = c => c.days == null ? `<span class="muted">Resolved ${ago(c.resolvedAgo).toLowerCase()}</span>` :
+  `<span class="days ${daysCls(c.days)} num">${c.days}d</span> <span class="muted mono">${fmt(new Date(TODAY.getTime() + c.days * dayMs))}</span>`;
+const chip = c => {
+  const tone = c.esc && handled.has(c.id) ? 'ok' : c.tone;
+  const text = c.esc && handled.has(c.id) ? 'Handled by you' : c.state;
+  return `<span class="chip ${tone}">${text}</span>`;
+};
+const stripe = c => c.esc && !handled.has(c.id) ? 'crit' : c.tone === 'warn' ? 'warn' : c.stage === 'resolved' ? 'ok' : 'none';
+const byUrgency = (a, b) => (b.esc && !handled.has(b.id)) - (a.esc && !handled.has(a.id)) || (a.days ?? 999) - (b.days ?? 999);
+
+// ---------- Variant A: ranked queue + detail panel ----------
+function variantA() {
+  const c = clients.find(x => x.id === selected);
+  const rows = [...clients].sort(byUrgency).map(x => `
+    <div class="row ${x.id === selected ? 'sel' : ''}" tabindex="0" data-sel="${x.id}">
+      <span class="stripe ${stripe(x)}"></span>
+      <span><b>${x.name}</b></span>
+      <span class="muted">${x.dmi}</span>
+      <span>${chip(x)}</span>
+      <span>${deadline(x)}</span>
+    </div>`).join('');
+  const pct = c.days == null ? 100 : Math.max(4, Math.round((90 - c.days) / 90 * 100));
+  const meterColor = c.days == null ? 'var(--ok)' : c.days <= 7 ? 'var(--crit)' : c.days <= 14 ? 'var(--warn)' : 'var(--accent)';
+  const esc = c.esc && !handled.has(c.id) ? `
+    <div class="handoff"><div class="label" style="color:var(--crit)">Needs you</div><b>${c.esc.trigger}</b><div>${c.esc.summary}</div>
+      ${c.esc.quote ? `<div class="quote">"${c.esc.quote}"</div>` : ''}<div><b>Suggested next step:</b> ${c.esc.next}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" data-handle="${c.id}">Mark handled</button><button>Take over thread</button></div></div>` : '';
+  const thread = c.thread ? `<div><div class="label">Thread</div><div class="thread">${c.thread.map(([who, t]) => `<div class="bubble ${who}">${t}</div>`).join('')}</div></div>` : '';
+  return `
+    <div class="a-stats">
+      <div class="a-stat"><div class="label">Needs you</div><div class="n num" style="color:var(--crit)">${escalations().length}</div></div>
+      <div class="a-stat"><div class="label">Assistant working</div><div class="n num">${open().filter(x => !x.esc || handled.has(x.id)).length}</div></div>
+      <div class="a-stat"><div class="label">Due in 14 days</div><div class="n num" style="color:var(--warn)">${open().filter(x => x.days <= 14).length}</div></div>
+      <div class="a-stat"><div class="label">Resolved, last 30 days</div><div class="n num" style="color:var(--ok)">${clients.filter(x => x.stage === 'resolved').length}</div></div>
+    </div>
+    <div class="a-grid">
+      <div class="a-table" role="list">
+        <div class="row head"><span></span><span class="label">Client</span><span class="label">DMI</span><span class="label">Status</span><span class="label">Deadline</span></div>
+        ${rows}
+      </div>
+      <aside class="a-detail">
+        <div><h2>${c.name}</h2><div class="muted">${c.dmi} DMI · ${c.days == null ? 'Resolved' : `due ${fmt(new Date(TODAY.getTime() + c.days * dayMs))}, ${c.days} days left`}</div></div>
+        <div><div class="meter" aria-label="Share of the 90-day window used"><span style="width:${pct}%;background:${meterColor}"></span></div>
+          <div class="mono muted" style="margin-top:4px">90-day window</div></div>
+        ${esc}
+        ${c.note ? `<div class="chip off" style="white-space:normal">${c.note}</div>` : ''}
+        ${thread}
+        <div><div class="label">What the Assistant did</div>
+          <ul class="timeline">${c.log.map(([d, tool, what, cr]) => `<li><span class="mono muted">${ago(d)}</span><span>${what}<br><span class="mono muted">${tool} · consent ${cr}</span></span></li>`).join('')}</ul></div>
+      </aside>
+    </div>`;
+}
+
+// ---------- Variant B: needs-you inbox ----------
+function variantB() {
+  const escs = clients.filter(c => c.esc).sort((a, b) => handled.has(a.id) - handled.has(b.id) || a.days - b.days);
+  const cards = escs.map(c => `
+    <article class="b-card ${handled.has(c.id) ? 'handled' : ''}">
+      <div style="display:grid;gap:6px;min-width:0">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:baseline"><h2>${c.name}</h2><span class="muted">${c.dmi} DMI</span>${deadline(c)}</div>
+        <div><b>${c.esc.trigger}.</b> ${c.esc.summary}</div>
+        ${c.esc.quote ? `<div class="quote">"${c.esc.quote}"</div>` : ''}
+        <div class="muted"><b>Suggested:</b> ${c.esc.next}</div>
+      </div>
+      <div class="b-actions">${handled.has(c.id) ? '<span class="chip ok">Handled by you</span>' :
+        `<button class="primary" data-handle="${c.id}">Mark handled</button><button>Open thread</button>`}</div>
+    </article>`).join('');
+  const feed = notifications.map(([d, who, what]) => `<div class="feed-item"><span class="mono muted">${ago(d)}</span><span><b>${who}</b> · ${what}</span></div>`).join('');
+  const working = open().filter(x => !x.esc).sort(byUrgency).map(x =>
+    `<div><span><b>${x.name}</b> <span class="muted">${x.dmi}</span></span><span>${chip(x)}</span><span>${deadline(x)}</span></div>`).join('');
+  return `
+    <div class="b-wrap">
+      <section>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <h2>${escalations().length ? `${escalations().length} Clients need you` : 'Nothing needs you right now'}</h2>
+          <span class="muted">The Assistant paused on these and is waiting for you.</span></div>
+        <div class="b-cards">${cards}</div>
+      </section>
+      <div class="b-two">
+        <section><h2 style="margin-bottom:8px">For your information</h2><div class="feed">${feed}</div></section>
+        <section><h2 style="margin-bottom:8px">Deadlines in the next 14 days</h2><div class="feed">${
+          open().filter(x => x.days <= 14).sort(byUrgency).map(x => `<div class="feed-item"><span>${deadline(x)}</span><span><b>${x.name}</b> · ${x.state}</span></div>`).join('')}</div></section>
+      </div>
+      <details class="all"><summary>Everything the Assistant is handling (${open().filter(x => !x.esc).length})</summary><div class="compact">${working}</div></details>
+    </div>`;
+}
+
+// ---------- Variant C: pipeline board ----------
+function variantC() {
+  const cols = [['contacting', 'Contacting'], ['waiting', 'Waiting on Client'], ['checking', 'Checking documents'], ['submitted', 'With the Marketplace'], ['resolved', 'Resolved']];
+  const card = c => `<div class="card" tabindex="0"><span class="who">${c.name}</span><span class="muted">${c.dmi} DMI</span>${chip(c)}<span>${deadline(c)}</span></div>`;
+  const lane = escalations().sort(byUrgency).map(c => `<div class="card" style="border-color:var(--crit)"><span class="who">${c.name}</span><span>${c.esc.trigger}</span>${deadline(c)}
+    <button class="primary" data-handle="${c.id}">Mark handled</button></div>`).join('');
+  const board = cols.map(([k, label]) => {
+    const items = clients.filter(c => c.stage === k && !(c.esc && !handled.has(c.id))).sort(byUrgency);
+    return `<div class="c-col"><h3><span>${label}</span><span class="num muted">${items.length}</span></h3>${items.map(card).join('') || '<span class="muted">None</span>'}</div>`;
+  }).join('');
+  const activity = clients.flatMap(c => c.log.map(([d, tool, what]) => [d, c.name, what])).sort((a, b) => a[0] - b[0]).slice(0, 6)
+    .map(([d, who, what]) => `<div class="line"><span class="mono muted">${ago(d)}</span><span><b>${who}</b> · ${what}</span></div>`).join('');
+  return `
+    <section class="c-lane"><div class="label" style="color:var(--crit)">Escalated to you (${escalations().length})</div>
+      <div class="c-lane-cards">${lane || '<span class="muted">Nothing waiting on you.</span>'}</div></section>
+    <div class="c-board">${board}</div>
+    <section class="ticker"><div class="label">Assistant activity</div>${activity}</section>`;
+}
+
+// ---------- Switcher ----------
+const variants = [['a', 'A · Ranked queue + detail', variantA], ['b', 'B · Needs-you inbox', variantB], ['c', 'C · Pipeline board', variantC]];
+const current = () => { const m = location.hash.match(/^#variant-([abc])$/); return m ? m[1] : 'a'; };
+function render() {
+  const v = variants.find(x => x[0] === current());
+  document.getElementById('app').innerHTML = v[2]();
+  document.getElementById('vlabel').textContent = v[1];
+  document.getElementById('subtitle').textContent =
+    `Andrew's ACA Clients · ${open().length} open DMIs · ${escalations().length} need you · ${TODAY.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`;
+}
+function step(dir) {
+  const i = variants.findIndex(x => x[0] === current());
+  location.hash = 'variant-' + variants[(i + dir + variants.length) % variants.length][0];
+}
+document.getElementById('prev').onclick = () => step(-1);
+document.getElementById('next').onclick = () => step(1);
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input, textarea, [contenteditable]')) return;
+  if (e.key === 'ArrowLeft') step(-1);
+  if (e.key === 'ArrowRight') step(1);
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.sel) { selected = +e.target.dataset.sel; render(); }
+});
+document.getElementById('app').addEventListener('click', e => {
+  const h = e.target.closest('[data-handle]'); if (h) { handled.add(+h.dataset.handle); render(); return; }
+  const r = e.target.closest('[data-sel]'); if (r) { selected = +r.dataset.sel; render(); }
+});
+window.addEventListener('hashchange', render);
+render();
+</script>
