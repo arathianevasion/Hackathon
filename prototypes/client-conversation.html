@@ -1,34 +1,37 @@
 <title>Client Conversation Prototype</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lato:wght@400;700;900&display=swap">
 <style>
 /* PROTOTYPE (throwaway) for ticket #7 "Client conversation experience (Q&A and guidance)".
    Three structurally different conversation designs, switchable via #variant-a / #variant-b / #variant-c and the floating bar.
    Each plays two scripted scenes step by step: the happy path (Rosa, income DMI) and the intervention path (Marcus, income changed).
    Synthetic data only. Layout concept: phone | portal page | what happened behind the scenes, side by side; stacks on narrow screens. */
+/* Styled with the Integrity design system (claude.ai/design project cf1fa7c3): royal blue for action, navy for chrome,
+   Lato for text, Inter for data, 16px cards with soft navy shadows, 4px controls, 8px chips. The system is light only. */
 :root {
-  --bg: #f4f7f7; --surface: #ffffff; --surface-2: #eaf0f0; --fg: #14211f; --muted: #5b6b68; --line: #d3dddb;
-  --accent: #0f6e66; --accent-soft: #d6ecea; --on-accent: #ffffff;
-  --crit: #b4232a; --crit-soft: #fbe3e3; --warn: #9a5b00; --warn-soft: #fbefd9; --ok: #1d7a3a; --ok-soft: #dff2e5; --info: #3c5a99; --info-soft: #e3eaf7;
-  --phone: #1b2624; --sms-in: #e6eceb; --sms-out: #2f7d74; --sms-out-fg: #ffffff; --paper: #fbfaf5; --paper-ink: #2b2b28;
-  --bar-bg: #14211f; --bar-fg: #f4f7f7;
-  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
-  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  /* Integrity primitives */
+  --royal: #4178ff; --royal-dark: #1357ff; --royal-light-2: #dfeafb; --royal-light-1: #f1faff;
+  --navy: #052a63; --navy-light-3: #1d3e71;
+  --radius-xs: 4px; --radius-sm: 8px; --radius-md: 16px;
+  --shadow-card: 0 1px 3px rgba(5,42,99,0.08), 0 1px 2px rgba(5,42,99,0.06);
+  --shadow-raised: 0 6px 16px rgba(5,42,99,0.10), 0 2px 4px rgba(5,42,99,0.06);
+  --shadow-menu: 0 8px 24px rgba(5,42,99,0.14);
+  --elevation-2: 0 3px 1px -2px rgba(0,0,0,0.20), 0 2px 2px 0 rgba(0,0,0,0.14), 0 1px 5px 0 rgba(0,0,0,0.12);
+  --focus-shadow: 0 0 0 3px rgba(65, 120, 255, 0.4);
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  /* prototype tokens mapped onto Integrity semantic aliases */
+  --bg: #fcfcfc; --surface: #ffffff; --surface-2: #f1f1f1; --fg: #272727; --muted: #5f6368; --line: #dddddd;
+  --accent: var(--royal); --accent-hover: var(--royal-dark); --accent-ink: var(--royal-dark); --accent-soft: var(--royal-light-2); --on-accent: #ffffff;
+  --crit: #a4262c; --crit-soft: #fbdede; --warn: #a34400; --warn-soft: #fcf2e8; --ok: #1a6d0a; --ok-soft: #e5faeb; --info: var(--navy-light-3); --info-soft: var(--royal-light-1);
+  --bar-bg: var(--navy); --bar-fg: #ffffff;
+  --phone: var(--navy); --sms-in: #f1f1f1; --sms-out: var(--royal); --sms-out-fg: #ffffff; --paper: #fbfaf5; --paper-ink: #2b2b28;
+  --display: "Lato", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --body: "Lato", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --mono: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color-scheme: light;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #0f1615; --surface: #172120; --surface-2: #1e2a29; --fg: #e3ecea; --muted: #93a6a2; --line: #2c3b39;
-  --accent: #4fc1b5; --accent-soft: #1b3a37; --on-accent: #0f1615;
-  --crit: #ff7a7f; --crit-soft: #3d1c1e; --warn: #f0b45a; --warn-soft: #3a2c14; --ok: #6fd28d; --ok-soft: #173322; --info: #9db6ee; --info-soft: #1d2740;
-  --phone: #050807; --sms-in: #26302f; --sms-out: #2f7d74; --sms-out-fg: #ffffff; --paper: #e9e6dc; --paper-ink: #2b2b28;
-  --bar-bg: #e3ecea; --bar-fg: #0f1615; color-scheme: dark } }
-:root[data-theme="dark"] {
-  --bg: #0f1615; --surface: #172120; --surface-2: #1e2a29; --fg: #e3ecea; --muted: #93a6a2; --line: #2c3b39;
-  --accent: #4fc1b5; --accent-soft: #1b3a37; --on-accent: #0f1615;
-  --crit: #ff7a7f; --crit-soft: #3d1c1e; --warn: #f0b45a; --warn-soft: #3a2c14; --ok: #6fd28d; --ok-soft: #173322; --info: #9db6ee; --info-soft: #1d2740;
-  --phone: #050807; --sms-in: #26302f; --sms-out: #2f7d74; --sms-out-fg: #ffffff; --paper: #e9e6dc; --paper-ink: #2b2b28;
-  --bar-bg: #e3ecea; --bar-fg: #0f1615; color-scheme: dark }
+
 
 * { box-sizing: border-box }
 body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; line-height: 1.45;
@@ -139,6 +142,31 @@ details p, details ul { margin-top: 6px; font-size: 13px }
 .switcher button { background: transparent; color: var(--bar-fg); border: 0; border-radius: 999px; padding: 6px 12px; font-size: 16px }
 .switcher button:hover { background: rgba(127,127,127,.25) }
 .switcher .lbl { font-size: 13px; font-weight: 600; padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+
+/* ---------- Integrity design system treatment ---------- */
+body { letter-spacing: .15px }
+h1, h2, h3 { font-weight: 700; letter-spacing: 0 }
+h1 { font-size: 24px; letter-spacing: -0.25px }
+.label { font-weight: 700; letter-spacing: 1px; font-size: 11px }
+button { border-radius: var(--radius-xs); font-weight: 600; letter-spacing: .2px; border-color: #cccccc;
+  transition: background-color 120ms var(--ease), box-shadow 120ms var(--ease), border-color 120ms var(--ease) }
+button:hover { background: var(--royal-light-1); border-color: var(--accent) }
+button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); box-shadow: var(--elevation-2) }
+button:focus-visible { outline: none; box-shadow: var(--focus-shadow) }
+.chip { border-radius: var(--radius-sm) }
+.chip.work { color: var(--accent-ink) }
+.switcher { box-shadow: var(--shadow-menu) }
+.switcher button:hover { background: rgba(255,255,255,.14) }
+
+.panel { border-radius: var(--radius-md); box-shadow: var(--shadow-card) }
+.panel-h { background: var(--surface); border-bottom-color: #f1f1f1 }
+.tabs { border-radius: var(--radius-xs); border-color: #cccccc }
+.tabs button[aria-pressed="true"] { background: var(--royal-light-2); color: var(--accent-ink) }
+.status, details, .docopt, .agentbox, .drop { border-radius: var(--radius-sm) }
+.docopt.sel .dot { border-color: var(--accent); background: var(--accent) }
+.docopt.sel { border-color: var(--accent); background: var(--royal-light-1) }
+.log .tool { color: var(--accent-ink) }
+.msg .lnk { color: var(--royal-dark) }
 </style>
 
 <div class="top">
