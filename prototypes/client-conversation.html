@@ -1,0 +1,411 @@
+<title>Client Conversation Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* PROTOTYPE (throwaway) for ticket #7 "Client conversation experience (Q&A and guidance)".
+   Three structurally different conversation designs, switchable via #variant-a / #variant-b / #variant-c and the floating bar.
+   Each plays two scripted scenes step by step: the happy path (Rosa, income DMI) and the intervention path (Marcus, income changed).
+   Synthetic data only. Layout concept: phone | portal page | what happened behind the scenes, side by side; stacks on narrow screens. */
+:root {
+  --bg: #f4f7f7; --surface: #ffffff; --surface-2: #eaf0f0; --fg: #14211f; --muted: #5b6b68; --line: #d3dddb;
+  --accent: #0f6e66; --accent-soft: #d6ecea; --on-accent: #ffffff;
+  --crit: #b4232a; --crit-soft: #fbe3e3; --warn: #9a5b00; --warn-soft: #fbefd9; --ok: #1d7a3a; --ok-soft: #dff2e5; --info: #3c5a99; --info-soft: #e3eaf7;
+  --phone: #1b2624; --sms-in: #e6eceb; --sms-out: #2f7d74; --sms-out-fg: #ffffff; --paper: #fbfaf5; --paper-ink: #2b2b28;
+  --bar-bg: #14211f; --bar-fg: #f4f7f7;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1615; --surface: #172120; --surface-2: #1e2a29; --fg: #e3ecea; --muted: #93a6a2; --line: #2c3b39;
+  --accent: #4fc1b5; --accent-soft: #1b3a37; --on-accent: #0f1615;
+  --crit: #ff7a7f; --crit-soft: #3d1c1e; --warn: #f0b45a; --warn-soft: #3a2c14; --ok: #6fd28d; --ok-soft: #173322; --info: #9db6ee; --info-soft: #1d2740;
+  --phone: #050807; --sms-in: #26302f; --sms-out: #2f7d74; --sms-out-fg: #ffffff; --paper: #e9e6dc; --paper-ink: #2b2b28;
+  --bar-bg: #e3ecea; --bar-fg: #0f1615; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f1615; --surface: #172120; --surface-2: #1e2a29; --fg: #e3ecea; --muted: #93a6a2; --line: #2c3b39;
+  --accent: #4fc1b5; --accent-soft: #1b3a37; --on-accent: #0f1615;
+  --crit: #ff7a7f; --crit-soft: #3d1c1e; --warn: #f0b45a; --warn-soft: #3a2c14; --ok: #6fd28d; --ok-soft: #173322; --info: #9db6ee; --info-soft: #1d2740;
+  --phone: #050807; --sms-in: #26302f; --sms-out: #2f7d74; --sms-out-fg: #ffffff; --paper: #e9e6dc; --paper-ink: #2b2b28;
+  --bar-bg: #e3ecea; --bar-fg: #0f1615; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 96px }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; margin: 0; text-wrap: balance }
+h1 { font-size: 22px } h2 { font-size: 16px } h3 { font-size: 14px }
+p { margin: 0 }
+.muted { color: var(--muted) }
+.mono { font-family: var(--mono); font-size: 12px }
+.label { text-transform: uppercase; letter-spacing: .06em; font-size: 11px; font-weight: 600; color: var(--muted) }
+button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 6px 12px }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600 }
+button:disabled { opacity: .45; cursor: default }
+
+.top { display: grid; gap: 6px; margin-bottom: 14px; max-width: 900px }
+.vdesc { font-size: 13px; color: var(--muted); max-width: 75ch }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px }
+.tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden }
+.tabs button { border: 0; border-radius: 0; background: var(--surface) }
+.tabs button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600 }
+.stepcount { font-family: var(--mono); font-size: 12px; color: var(--muted) }
+
+.stage { display: grid; grid-template-columns: 340px minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start }
+@media (max-width: 1100px) { .stage { grid-template-columns: 340px minmax(0, 1fr) } .side { grid-column: 1 / -1 } }
+@media (max-width: 760px) { .stage { grid-template-columns: minmax(0, 1fr) } }
+
+/* phone */
+.phone { background: var(--phone); border-radius: 34px; padding: 12px; max-width: 340px; width: 100% }
+.screen { background: var(--surface); border-radius: 24px; overflow: hidden; display: grid; grid-template-rows: auto 1fr auto; height: 600px }
+.ph-head { padding: 12px 14px 10px; border-bottom: 1px solid var(--line); text-align: center; display: grid; gap: 1px }
+.ph-head .who { font-weight: 600; font-size: 13px }
+.ph-head .num { font-family: var(--mono); font-size: 11px; color: var(--muted) }
+.msgs { overflow-y: auto; padding: 12px 10px; display: flex; flex-direction: column; gap: 6px; scroll-behavior: smooth }
+.msg { max-width: 82%; padding: 8px 11px; border-radius: 16px; font-size: 13.5px; line-height: 1.38; white-space: pre-wrap; overflow-wrap: anywhere }
+.msg.asst { background: var(--sms-in); align-self: flex-start; border-bottom-left-radius: 5px }
+.msg.client { background: var(--sms-out); color: var(--sms-out-fg); align-self: flex-end; border-bottom-right-radius: 5px }
+.msg.new { animation: pop .25s ease-out }
+.msg .lnk { color: var(--info); text-decoration: underline; font-family: var(--mono); font-size: 12px }
+.msg.client .lnk { color: var(--sms-out-fg) }
+.sys { align-self: center; font-size: 11px; color: var(--muted); text-align: center; padding: 4px 8px; max-width: 90% }
+.ph-input { border-top: 1px solid var(--line); padding: 8px 10px; display: flex; gap: 6px; align-items: center }
+.ph-input .fake { flex: 1; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; color: var(--muted); font-size: 12px }
+.seg { font-family: var(--mono); font-size: 10px; color: var(--muted); align-self: flex-start; margin: -2px 0 2px 6px }
+@keyframes pop { from { transform: translateY(6px); opacity: .3 } to { transform: none; opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .msg.new { animation: none } .msgs { scroll-behavior: auto } }
+
+/* portal */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0 }
+.panel-h { padding: 8px 12px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; align-items: center; background: var(--surface-2) }
+.urlbar { font-family: var(--mono); font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.portal { padding: 16px; display: grid; gap: 14px }
+.portal.closed { color: var(--muted); font-size: 13px; min-height: 120px; place-content: center; text-align: center }
+.due { display: inline-flex; gap: 6px; align-items: baseline; font-size: 13px }
+.due b { font-family: var(--mono) }
+.drop { border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; display: grid; gap: 6px; justify-items: center }
+.drop .big { font-weight: 600 }
+.status { border-radius: 8px; padding: 10px 12px; font-size: 13px; display: grid; gap: 6px }
+.status.ok { background: var(--ok-soft); color: var(--ok) } .status.warn { background: var(--warn-soft); color: var(--warn) }
+.status.info { background: var(--info-soft); color: var(--info) } .status.work { background: var(--accent-soft); color: var(--accent) }
+.status .t { font-weight: 600 }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px }
+.checks li { display: grid; grid-template-columns: 18px 1fr; gap: 6px }
+.checks .y { color: var(--ok); font-weight: 700 } .checks .n { color: var(--crit); font-weight: 700 }
+details { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px }
+summary { cursor: pointer; font-weight: 600; font-size: 13px }
+details p, details ul { margin-top: 6px; font-size: 13px }
+.doclist { display: grid; gap: 6px }
+.docopt { display: grid; grid-template-columns: 16px 1fr; gap: 8px; align-items: start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px }
+.docopt.sel { border-color: var(--accent); background: var(--accent-soft) }
+.docopt .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--muted); margin-top: 2px }
+.docopt.sel .dot { border-color: var(--accent); background: var(--accent) }
+
+/* specimen pay stub */
+.stubwrap { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 12px; align-items: start }
+@media (max-width: 480px) { .stubwrap { grid-template-columns: minmax(0, 1fr) } }
+.stub { position: relative; background: var(--paper); color: var(--paper-ink); border: 1px solid #c9c5b6; border-radius: 4px; padding: 10px; font-family: var(--mono); font-size: 10px; line-height: 1.5; overflow: hidden; max-width: 220px }
+.stub .row { display: flex; justify-content: space-between; gap: 6px }
+.stub .hd { font-weight: 600; font-size: 11px }
+.stub .wm { position: absolute; inset: 0; display: grid; place-items: center; font-size: 26px; font-weight: 600; color: rgba(180, 35, 42, .18); transform: rotate(-20deg); pointer-events: none; letter-spacing: .1em }
+.stub .hl { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 2px }
+.stub.cropped { height: 108px }
+.stub.cropped .inner { margin-top: -46px }
+.stub.cropped::before { content: "✗ name and pay period cut off"; position: absolute; inset: 0 0 auto; padding: 2px 6px; font-size: 9px; color: var(--crit); background: var(--crit-soft); border-bottom: 2px dashed var(--crit); z-index: 1 }
+.stub .bad { outline: 2px dashed var(--crit); outline-offset: 1px }
+.cap { font-size: 12px; color: var(--muted) }
+
+/* side: behind the scenes */
+.side { display: grid; gap: 12px; min-width: 0 }
+.dmi { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.chip { display: inline-flex; align-items: center; font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 999px; white-space: nowrap }
+.chip.crit { background: var(--crit-soft); color: var(--crit) } .chip.warn { background: var(--warn-soft); color: var(--warn) }
+.chip.ok { background: var(--ok-soft); color: var(--ok) } .chip.info { background: var(--info-soft); color: var(--info) }
+.chip.work { background: var(--accent-soft); color: var(--accent) }
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px }
+.log li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; font-size: 13px; padding-bottom: 8px; border-bottom: 1px solid var(--line) }
+.log .tool { font-family: var(--mono); font-size: 12px; color: var(--accent); grid-row: span 2 }
+.log .cr { font-family: var(--mono); font-size: 11px; color: var(--muted) }
+.log li.esc .tool { color: var(--crit) } .log li.note .tool { color: var(--info) }
+.agentbox { border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; font-size: 13px }
+.agentbox.esc { background: var(--crit-soft); color: var(--crit) } .agentbox.note { background: var(--info-soft); color: var(--info) }
+.agentbox .t { font-weight: 600 }
+.watch { font-size: 12px; color: var(--muted); border-left: 3px solid var(--line); padding-left: 10px; display: grid; gap: 4px }
+
+/* switcher (prototype chrome, not part of the design) */
+.switcher { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 4px;
+  background: var(--bar-bg); color: var(--bar-fg); border-radius: 999px; padding: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 20; max-width: calc(100% - 32px) }
+.switcher button { background: transparent; color: var(--bar-fg); border: 0; border-radius: 999px; padding: 6px 12px; font-size: 16px }
+.switcher button:hover { background: rgba(127,127,127,.25) }
+.switcher .lbl { font-size: 13px; font-weight: 600; padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+</style>
+
+<div class="top">
+  <span class="label">Prototype · Client conversation experience · synthetic data</span>
+  <h1 id="vtitle"></h1>
+  <p class="vdesc" id="vdesc"></p>
+</div>
+
+<div class="controls">
+  <div class="tabs" role="group" aria-label="Scene">
+    <button id="scene-happy" aria-pressed="true">Happy path · Rosa</button>
+    <button id="scene-change" aria-pressed="false">Income changed · Marcus</button>
+  </div>
+  <button class="primary" id="next">Next step ▸</button>
+  <button id="all">Play all</button>
+  <button id="restart">Restart</button>
+  <span class="stepcount" id="stepcount"></span>
+</div>
+
+<div class="stage">
+  <div class="phone" aria-label="Client's phone">
+    <div class="screen">
+      <div class="ph-head"><span class="who" id="phwho"></span><span class="num">(555) 010-4471 · Text message</span></div>
+      <div class="msgs" id="msgs" aria-live="polite"></div>
+      <div class="ph-input"><span class="fake">Text message</span></div>
+    </div>
+  </div>
+
+  <section class="panel" aria-label="Client portal page">
+    <div class="panel-h"><span class="label">Portal page (Client's browser)</span><span class="urlbar">portal.example/r/7Q2K</span></div>
+    <div id="portal"></div>
+  </section>
+
+  <aside class="side" aria-label="Behind the scenes">
+    <section class="panel">
+      <div class="panel-h"><span class="label">Behind the scenes</span></div>
+      <div class="portal">
+        <div class="dmi"><span class="label">DMI</span><span id="dmitype"></span><span id="dmistatus"></span><span class="mono muted" id="dmidue"></span></div>
+        <div id="agentbox"></div>
+        <div><span class="label">Assistant actions</span><ul class="log" id="log" style="margin-top:6px"></ul></div>
+        <div class="watch" id="watch"></div>
+      </div>
+    </section>
+  </aside>
+</div>
+
+<nav class="switcher" aria-label="Prototype variant switcher">
+  <button id="prev" aria-label="Previous variant">←</button>
+  <span class="lbl" id="vlabel"></span>
+  <button id="nextv" aria-label="Next variant">→</button>
+</nav>
+
+<script>
+// ---------- dates relative to the run date ----------
+const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
+const inDays = n => new Date(TODAY.getTime() + n * 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+const ROSA_DUE = inDays(10), MARCUS_DUE = inDays(23);
+const LINK = '⟦link⟧';
+
+// ---------- variants ----------
+const VARIANTS = {
+  a: { key: 'A', name: 'Everything in the text',
+       desc: 'The Thread carries all of it: the why, the list of documents that work, and the full list of fixes after a bad upload. The portal page is upload only, as decided in Assistant autonomy boundaries.' },
+  b: { key: 'B', name: 'Short texts, smart upload page',
+       desc: 'Texts stay to one or two lines and point to the portal. The portal page explains why, lets the Client pick a document, shows a SPECIMEN with the required fields highlighted, and marks problems on the uploaded photo. This stretches the "portal for uploads only" decision.' },
+  c: { key: 'C', name: 'Guided by questions',
+       desc: 'The Assistant asks one short question (how are you paid?) and recommends the single best document, with a checklist of what the photo must show. After a bad upload it replays the same checklist with ✓ and ✗. The portal page stays upload only.' },
+};
+const ORDER = ['a', 'b', 'c'];
+
+// step: { a: asst text | c: client text | s: system line, p: portal state, log: [tool, detail, kind], dmi: status, agent: {...}, watch: text }
+const asstLog = d => ['send_text', d];
+const SCRIPTS = {
+  a: {
+    happy: [
+      { a: `Hi Rosa, this is the AI assistant working with your insurance agent, Andrew. The Marketplace needs proof of your income by ${ROSA_DUE} to keep your help paying premiums. A recent pay stub is the easiest way. Upload it here: ${LINK}\n\nQuestions? Just reply. Reply STOP to opt out.`, log: asstLog('Initial text with portal link'), dmi: 'open', p: 'idle',
+        watch: 'AI disclosure and STOP in the first text. Deadline from the DMI notice.' },
+      { c: 'Why do they need this? I already applied.' },
+      { a: `The Marketplace compared the income on your application with records from other sources, like the IRS, and they didn't match closely enough. This is routine and doesn't mean you did anything wrong.\n\nIf they don't get proof by ${ROSA_DUE}, your monthly help paying premiums could be lowered or stopped.`, log: asstLog('Answered "why is this needed"') },
+      { c: "What if I can't find a pay stub?" },
+      { a: 'Any one of these works:\n• Your most recent pay stub\n• A letter from your employer showing your pay\n• Your 2025 tax return or W-2, if your pay is about the same this year\n\nA pay stub needs to show your name, your pay, the pay period, and the pay date.', log: asstLog('Listed documents that work for an income DMI'),
+        watch: 'Success criterion 1: names the right documents for this DMI.' },
+      { s: 'Rosa opens the link and uploads a phone photo', p: 'checking', log: ['precheck_document', 'Running checks on photo'] },
+      { a: "Thanks, I got your photo. I can't send it yet because:\n1. Your name isn't visible (the top is cut off)\n2. The pay period dates aren't visible\n\nPlease take a new photo of the whole stub, flat and in good light, and upload it at the same link. Everything else looked good.", p: 'insufficient', log: ['precheck_document', 'Insufficient: name and pay period missing'],
+        watch: 'Success criterion 2: flags the bad upload and says why. All issues at once, not one at a time.' },
+      { s: 'Rosa uploads a new photo', p: 'checking', log: ['precheck_document', 'Running checks on second photo'] },
+      { a: "That one works. I sent it to the Marketplace today. I'll text you when they finish reviewing it. Nothing else is needed from you.", p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Pay stub submitted'], agent: { kind: 'note', t: 'Notification: documents submitted', d: 'Rosa Delgado-Finch, income DMI. No action needed.' },
+        watch: 'Review time is still fog on the map, so the text promises no date.' },
+      { s: 'Fast-forward: the mocked Marketplace finishes its review', p: 'resolved', dmi: 'resolved', log: ['get_dmi_status', 'Marketplace marked resolved'] },
+      { a: 'Good news: the Marketplace accepted your document and closed the request. Your coverage and premium help continue as they are.', log: asstLog('Told Rosa the DMI is resolved'), agent: { kind: 'note', t: 'Notification: DMI resolved', d: 'Rosa Delgado-Finch. No action needed.' },
+        watch: 'Success criterion 3: the mocked Marketplace shows resolved.' },
+    ],
+    change: [
+      { a: `Hi Marcus, this is the AI assistant working with your insurance agent, Andrew. The Marketplace needs proof of your income by ${MARCUS_DUE} to keep your help paying premiums. A recent pay stub is the easiest way. Upload it here: ${LINK}\n\nQuestions? Just reply. Reply STOP to opt out.`, log: asstLog('Initial text with portal link'), dmi: 'open', p: 'idle' },
+      { c: 'I switched jobs last month, so my pay is lower now. Does that matter?' },
+      { a: "It might, so I'm handing this to Andrew. Updating the income on your application has to be done by your licensed agent, not by me. I've sent him the details and he'll contact you.\n\nPlease hold off on uploading anything until you've talked with him.", p: 'paused', dmi: 'escalated', log: ['escalate_to_agent', 'Income change reported', 'esc'],
+        agent: { kind: 'esc', t: 'Escalation: income changed', d: 'Marcus says he changed jobs last month and earns less. Suggested next step: call Marcus to review and update projected income.' },
+        watch: 'Success criterion 5: the Agent gets the trigger, a summary, the Client\'s words and a next step. The Assistant gives no advice on what to report.' },
+      { c: 'Ok thanks' },
+      { s: 'The Assistant stays paused for Marcus until Andrew marks the Escalation handled', log: ['(paused)', 'No further texts to Marcus', 'note'] },
+    ],
+  },
+  b: {
+    happy: [
+      { a: `Hi Rosa, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs proof of your income by ${ROSA_DUE}. Everything you need is here: ${LINK}\nReply with any questions. Reply STOP to opt out.`, log: asstLog('Initial text with portal link'), dmi: 'open', p: 'idle',
+        watch: 'The text is short. The explaining happens on the page.' },
+      { c: 'Why do they need this? I already applied.' },
+      { a: `It's a routine check. The Marketplace couldn't match your income with its records. Without proof by ${ROSA_DUE}, your premium help could stop. The page explains more: ${LINK}`, log: asstLog('Answered "why is this needed"') },
+      { s: 'Rosa opens the link', p: 'open', watch: 'Success criterion 1 lives on the page: the list of documents that work, with a SPECIMEN example.' },
+      { s: 'Rosa picks "Pay stub" and uploads a phone photo', p: 'checking', log: ['precheck_document', 'Running checks on photo'] },
+      { s: 'The page shows the problems on her photo', p: 'insufficient', log: ['precheck_document', 'Insufficient: name and pay period missing'] },
+      { a: `I checked your photo. 2 things to fix, marked here: ${LINK}`, log: asstLog('Pointed to the fixes on the page'),
+        watch: 'If Rosa closed the page, the text brings her back. The fixes themselves are on the page.' },
+      { s: 'Rosa retakes the photo and uploads it', p: 'checking', log: ['precheck_document', 'Running checks on second photo'] },
+      { s: 'The page confirms it was sent', p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Pay stub submitted'], agent: { kind: 'note', t: 'Notification: documents submitted', d: 'Rosa Delgado-Finch, income DMI. No action needed.' } },
+      { a: "Got it. I sent your pay stub to the Marketplace. I'll text you when they're done.", log: asstLog('Confirmed submission') },
+      { s: 'Fast-forward: the mocked Marketplace finishes its review', p: 'resolved', dmi: 'resolved', log: ['get_dmi_status', 'Marketplace marked resolved'] },
+      { a: "All set. The Marketplace accepted your document. Your coverage and premium help don't change.", log: asstLog('Told Rosa the DMI is resolved'), agent: { kind: 'note', t: 'Notification: DMI resolved', d: 'Rosa Delgado-Finch. No action needed.' } },
+    ],
+    change: [
+      { a: `Hi Marcus, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs proof of your income by ${MARCUS_DUE}. Everything you need is here: ${LINK}\nReply with any questions. Reply STOP to opt out.`, log: asstLog('Initial text with portal link'), dmi: 'open', p: 'idle' },
+      { s: 'Marcus opens the link and reads the page', p: 'open' },
+      { c: 'I switched jobs last month, so my pay is lower now. Does that matter?' },
+      { a: "It might. Andrew, your licensed agent, needs to update your application, so I've passed this to him and he'll contact you. Please don't upload anything yet.", p: 'paused', dmi: 'escalated', log: ['escalate_to_agent', 'Income change reported', 'esc'],
+        agent: { kind: 'esc', t: 'Escalation: income changed', d: 'Marcus says he changed jobs last month and earns less. Suggested next step: call Marcus to review and update projected income.' },
+        watch: 'The page switches to "your agent will contact you" so it doesn\'t keep asking for an upload.' },
+    ],
+  },
+  c: {
+    happy: [
+      { a: `Hi Rosa, this is the AI assistant working with your insurance agent, Andrew. The Marketplace needs proof of your income by ${ROSA_DUE} to keep your help paying premiums.\n\nTo find the easiest document for you: how are you paid now?\n1. By an employer (paycheck)\n2. Self-employed or gig work\n3. Benefits, like Social Security or unemployment\n4. Something else\n\nReply STOP to opt out.`, log: asstLog('Initial text with a question'), dmi: 'open', p: 'idle',
+        watch: 'No link yet. The link comes once the Assistant knows which document to ask for.' },
+      { c: 'Why do they need this? I already applied.' },
+      { a: `The Marketplace compared your application with records from other sources, like the IRS, and the income didn't match closely enough. It's routine and doesn't mean you did anything wrong. Without proof by ${ROSA_DUE}, your premium help could be lowered or stopped.\n\nWhen you're ready, reply 1, 2, 3 or 4 and I'll tell you exactly what to send.`, log: asstLog('Answered "why is this needed"') },
+      { c: '1' },
+      { a: `Then your most recent pay stub is the one to send. Make sure the photo shows:\n☐ Your name\n☐ Your pay\n☐ The pay period dates\n☐ The pay date\n\nUpload it here: ${LINK}`, log: ['create_portal_link', 'Link for a pay stub'],
+        watch: 'Success criterion 1: one recommended document, plus what it must show.' },
+      { s: 'Rosa opens the link and uploads a phone photo', p: 'checking', log: ['precheck_document', 'Running checks on photo'] },
+      { a: "I checked your photo:\n✗ Your name (the top is cut off)\n✓ Your pay\n✗ The pay period dates\n✓ The pay date\n\nPlease retake it showing the whole stub, flat and in good light. Same link.", p: 'insufficient', log: ['precheck_document', 'Insufficient: name and pay period missing'],
+        watch: 'Same checklist as before, now marked. The Client sees what passed as well as what failed.' },
+      { s: 'Rosa uploads a new photo', p: 'checking', log: ['precheck_document', 'Running checks on second photo'] },
+      { a: "✓ All four look good. I sent it to the Marketplace today and I'll text you when they finish reviewing it. Nothing else is needed from you.", p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Pay stub submitted'], agent: { kind: 'note', t: 'Notification: documents submitted', d: 'Rosa Delgado-Finch, income DMI. No action needed.' } },
+      { s: 'Fast-forward: the mocked Marketplace finishes its review', p: 'resolved', dmi: 'resolved', log: ['get_dmi_status', 'Marketplace marked resolved'] },
+      { a: 'Good news: the Marketplace accepted your pay stub and closed the request. Your coverage and premium help continue as they are.', log: asstLog('Told Rosa the DMI is resolved'), agent: { kind: 'note', t: 'Notification: DMI resolved', d: 'Rosa Delgado-Finch. No action needed.' } },
+    ],
+    change: [
+      { a: `Hi Marcus, this is the AI assistant working with your insurance agent, Andrew. The Marketplace needs proof of your income by ${MARCUS_DUE} to keep your help paying premiums.\n\nTo find the easiest document for you: how are you paid now?\n1. By an employer (paycheck)\n2. Self-employed or gig work\n3. Benefits, like Social Security or unemployment\n4. Something else\n\nReply STOP to opt out.`, log: asstLog('Initial text with a question'), dmi: 'open', p: 'idle' },
+      { c: '1, but I switched jobs last month so my pay is lower now. Does that matter?' },
+      { a: "It might, so I'm handing this to Andrew. Updating the income on your application has to be done by your licensed agent, not by me. I've sent him the details and he'll contact you.\n\nPlease hold off on uploading anything until you've talked with him.", p: 'paused', dmi: 'escalated', log: ['escalate_to_agent', 'Income change reported', 'esc'],
+        agent: { kind: 'esc', t: 'Escalation: income changed', d: 'Marcus says he changed jobs last month and earns less. Suggested next step: call Marcus to review and update projected income.' },
+        watch: 'The guiding question surfaces the job change early, before any upload.' },
+    ],
+  },
+};
+
+// ---------- portal rendering ----------
+function stub({ cropped = false, highlight = false, marks = false } = {}) {
+  const hl = highlight ? ' hl' : '', bad = marks ? ' bad' : '';
+  return `<div class="stub${cropped ? ' cropped' : ''}" aria-label="SPECIMEN pay stub${cropped ? ', cropped photo' : ''}">
+    <div class="inner">
+      <div class="row hd"><span>NORTHWIND FABRICATION LLC</span></div>
+      <div class="row"><span class="${hl}${bad}">Employee: Rosa Delgado-Finch</span></div>
+      <div class="row"><span class="${hl}${bad}">Pay period: Oct 16 – Oct 31</span></div>
+      <div class="row"><span class="${hl}">Pay date: Nov 5</span><span>Biweekly</span></div>
+      <div class="row"><span>Hours 80.0</span><span>Rate 19.50</span></div>
+      <div class="row"><span class="${hl}">Gross pay</span><span class="${hl}">1,560.00</span></div>
+      <div class="row"><span>Taxes</span><span>-212.16</span></div>
+      <div class="row"><span>Net pay</span><span>1,347.84</span></div>
+    </div>
+    <div class="wm">SPECIMEN</div>
+  </div>`;
+}
+const checkList = (items) => `<ul class="checks">${items.map(([ok, t]) => `<li><span class="${ok ? 'y' : 'n'}">${ok ? '✓' : '✗'}</span><span>${t}</span></li>`).join('')}</ul>`;
+
+function portalSimple(state, who, due) {
+  const head = `<div><h2>Upload proof of income</h2><span class="due muted">For ${who} · due <b>${due}</b></span></div>`;
+  const drop = `<div class="drop"><span class="big">Take a photo or choose a file</span><span class="cap">JPG, PNG or PDF</span><button>Upload</button></div>`;
+  switch (state) {
+    case 'idle': return `<div class="portal closed">The Client hasn't opened the link yet.</div>`;
+    case 'open': return `<div class="portal">${head}${drop}</div>`;
+    case 'checking': return `<div class="portal">${head}<div class="status work"><span class="t">Checking your document…</span><span>You'll get a text in a moment.</span></div></div>`;
+    case 'insufficient': return `<div class="portal">${head}<div class="status warn"><span class="t">This one needs a fix</span><span>We texted you what to change.</span></div>${drop}</div>`;
+    case 'submitted': return `<div class="portal">${head}<div class="status info"><span class="t">Sent to the Marketplace</span><span>Nothing else is needed from you.</span></div></div>`;
+    case 'resolved': return `<div class="portal">${head}<div class="status ok"><span class="t">Done</span><span>The Marketplace accepted your document.</span></div></div>`;
+    case 'paused': return `<div class="portal">${head}<div class="status info"><span class="t">Your agent will contact you</span><span>Please don't upload anything yet.</span></div></div>`;
+  }
+}
+
+function portalRich(state, who, due) {
+  const head = `<div><h2>Proof of income for the Marketplace</h2><span class="due muted">For ${who} · due <b>${due}</b></span></div>`;
+  const why = `<details><summary>Why am I being asked?</summary><p>The Marketplace compared the income on your application with records from other sources, like the IRS, and they didn't match closely enough. It's routine. If they don't get proof by ${due}, your help paying premiums could be lowered or stopped.</p></details>`;
+  const opts = (sel) => `<div class="doclist"><span class="label">Choose one document</span>
+    ${[['Pay stub', 'Your most recent one. Easiest for most people.'], ['Letter from your employer', 'Must show your pay and how often you are paid.'], ['2025 tax return or W-2', 'Only if your pay is about the same this year.'], ["I don't have any of these", 'Your agent will help.']]
+      .map(([t, d], i) => `<div class="docopt${sel && i === 0 ? ' sel' : ''}"><span class="dot"></span><span><b>${t}</b><br><span class="muted">${d}</span></span></div>`).join('')}</div>`;
+  const example = `<div class="stubwrap">${stub({ highlight: true })}<div class="cap"><b>What the photo must show</b>, highlighted on this example: your name, the pay period, the pay date, and your pay.</div></div>`;
+  const drop = `<div class="drop"><span class="big">Take a photo or choose a file</span><button>Upload pay stub</button></div>`;
+  switch (state) {
+    case 'idle': return `<div class="portal closed">The Client hasn't opened the link yet.</div>`;
+    case 'open': return `<div class="portal">${head}${why}${opts(false)}${example}${drop}</div>`;
+    case 'checking': return `<div class="portal">${head}<div class="status work"><span class="t">Checking your pay stub…</span><span>This takes a few seconds.</span></div></div>`;
+    case 'insufficient': return `<div class="portal">${head}<div class="status warn"><span class="t">2 things to fix</span>${checkList([[false, 'Your name: the top of the stub is cut off'], [false, 'Pay period: the dates are cut off'], [true, 'Pay date'], [true, 'Your pay']])}</div>
+      <div class="stubwrap">${stub({ cropped: true, marks: true })}<div class="cap"><b>Your photo.</b> Retake it with the whole stub in the frame, flat and in good light.</div></div>${drop}</div>`;
+    case 'submitted': return `<div class="portal">${head}<div class="status info"><span class="t">Sent to the Marketplace</span>${checkList([[true, 'Your name'], [true, 'Pay period'], [true, 'Pay date'], [true, 'Your pay']])}<span>Nothing else is needed from you. We'll text you when they're done.</span></div></div>`;
+    case 'resolved': return `<div class="portal">${head}<div class="status ok"><span class="t">Done</span><span>The Marketplace accepted your pay stub. Your coverage and premium help don't change.</span></div></div>`;
+    case 'paused': return `<div class="portal">${head}<div class="status info"><span class="t">Your agent will contact you</span><span>Because your income changed, Andrew needs to update your application first. Please don't upload anything yet.</span></div></div>`;
+  }
+}
+
+// ---------- state + render ----------
+let variant = 'a', scene = 'happy', step = 0;
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch]));
+const linkify = s => esc(s).replaceAll(LINK, '<span class="lnk">portal.example/r/7Q2K</span>');
+const DMI = { open: ['Open', 'warn'], submitted: ['Submitted', 'info'], resolved: ['Resolved', 'ok'], escalated: ['Escalated to Agent', 'crit'] };
+
+function render(animateLast) {
+  const v = VARIANTS[variant], steps = SCRIPTS[variant][scene];
+  const who = scene === 'happy' ? 'Rosa Delgado-Finch' : 'Marcus Whitlow', due = scene === 'happy' ? ROSA_DUE : MARCUS_DUE, left = scene === 'happy' ? 10 : 23;
+  $('vtitle').textContent = `${v.key}: ${v.name}`;
+  $('vdesc').textContent = v.desc;
+  $('vlabel').textContent = `${v.key} (${v.name})`;
+  $('phwho').textContent = 'Andrew · AI assistant';
+  $('scene-happy').setAttribute('aria-pressed', scene === 'happy');
+  $('scene-change').setAttribute('aria-pressed', scene === 'change');
+  $('stepcount').textContent = `Step ${step} of ${steps.length}`;
+  $('next').disabled = $('all').disabled = step >= steps.length;
+
+  let html = '', p = 'idle', dmi = 'open', agent = null, watch = null; const log = [];
+  steps.slice(0, step).forEach((s, i) => {
+    const cls = i === step - 1 && animateLast ? ' new' : '';
+    if (s.a) html += `<div class="msg asst${cls}">${linkify(s.a)}</div>`;
+    if (s.c) html += `<div class="msg client${cls}">${esc(s.c)}</div>`;
+    if (s.s) html += `<div class="sys">${esc(s.s)}</div>`;
+    if (s.p) p = s.p; if (s.dmi) dmi = s.dmi; if (s.agent) agent = s.agent; if (s.watch) watch = s.watch;
+    if (s.log) log.unshift(s.log);
+  });
+  if (!step) html = `<div class="sys">Press "Next step" to start the conversation.</div>`;
+  $('msgs').innerHTML = html;
+  $('msgs').scrollTop = $('msgs').scrollHeight;
+
+  $('portal').innerHTML = (variant === 'b' ? portalRich : portalSimple)(p, who, due);
+
+  $('dmitype').innerHTML = `<b>Income</b> · ${who}`;
+  const [dl, dc] = DMI[dmi];
+  $('dmistatus').innerHTML = `<span class="chip ${dc}">${dl}</span>`;
+  $('dmidue').textContent = `due ${due} · ${left} days left`;
+  $('agentbox').innerHTML = agent ? `<div class="agentbox ${agent.kind}"><span class="t">Agent view · ${agent.t}</span><span>${esc(agent.d)}</span></div>` : '';
+  $('log').innerHTML = log.length ? log.map(([t, d, k]) => `<li class="${k || ''}"><span class="tool">${t}</span><span>${esc(d)}</span><span class="cr">${t.startsWith('(') ? '' : 'check_consent ✓ CR-' + (scene === 'happy' ? '1041' : '1007')}</span></li>`).join('') : '<li><span class="muted">Nothing yet.</span></li>';
+  $('watch').innerHTML = watch ? `<span class="label">What to judge here</span><span>${esc(watch)}</span>` : '';
+}
+
+function setVariant(v) { variant = v; step = 0; try { history.replaceState(null, '', '#variant-' + v) } catch (e) { location.hash = 'variant-' + v } render(false) }
+function cycle(d) { setVariant(ORDER[(ORDER.indexOf(variant) + d + ORDER.length) % ORDER.length]) }
+$('prev').onclick = () => cycle(-1);
+$('nextv').onclick = () => cycle(1);
+$('next').onclick = () => { step++; render(true) };
+$('all').onclick = () => { step = SCRIPTS[variant][scene].length; render(false) };
+$('restart').onclick = () => { step = 0; render(false) };
+$('scene-happy').onclick = () => { scene = 'happy'; step = 0; render(false) };
+$('scene-change').onclick = () => { scene = 'change'; step = 0; render(false) };
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input, textarea, [contenteditable]')) return;
+  if (e.key === 'ArrowLeft') cycle(-1);
+  if (e.key === 'ArrowRight') cycle(1);
+  if (e.key === 'n' || e.key === 'N') $('next').click();
+});
+function fromHash() { const m = location.hash.match(/^#variant-([abc])$/); variant = m ? m[1] : 'a'; step = 0; render(false) }
+window.addEventListener('hashchange', fromHash);
+fromHash();
+</script>
