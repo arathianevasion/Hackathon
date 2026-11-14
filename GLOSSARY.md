@@ -50,6 +50,10 @@ _Avoid_: Consent form, authorization, permission
 The single running text conversation between a Client and the Assistant, which the Agent can also post in.
 _Avoid_: Chat, conversation, inbox
 
+**Portal link**:
+A single-use, expiring link, sent to the Client by text, that opens an upload-only page for one DMI.
+_Avoid_: Upload link, secure link, magic link
+
 ### Handover to the Agent
 
 **Escalation**:
