@@ -4,169 +4,145 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lato:wght@400;700;900&display=swap">
 <style>
 /* PROTOTYPE (throwaway) for ticket #7 "Client conversation experience (Q&A and guidance)".
-   Three structurally different conversation designs, switchable via #variant-a / #variant-b / #variant-c and the floating bar.
-   Each plays two scripted scenes step by step: the happy path (Rosa, income DMI) and the intervention path (Marcus, income changed).
-   Synthetic data only. Layout concept: phone | portal page | what happened behind the scenes, side by side; stacks on narrow screens. */
-/* Styled with the Integrity design system (claude.ai/design project cf1fa7c3): royal blue for action, navy for chrome,
-   Lato for text, Inter for data, 16px cards with soft navy shadows, 4px controls, 8px chips. The system is light only. */
+   Three conversation designs, switchable via #variant-a / #variant-b / #variant-c and the floating bar.
+   The Client lives on their phone: tapping the Portal link opens the upload page in the phone's browser, and "Done" returns to Messages.
+   Three scenes per variant: happy path (Rosa, income DMI), income changed (Marcus), security moments (Ada, SSN DMI: texted SSN, expired link).
+   Synthetic data only. Styled with the Integrity design system (light only).
+   Layout concept: one phone, with a behind-the-scenes panel beside it; stacks on narrow screens. */
 :root {
-  /* Integrity primitives */
   --royal: #4178ff; --royal-dark: #1357ff; --royal-light-2: #dfeafb; --royal-light-1: #f1faff;
   --navy: #052a63; --navy-light-3: #1d3e71;
+  --bg: #fcfcfc; --surface: #ffffff; --surface-2: #f1f1f1; --fg: #272727; --muted: #5f6368; --line: #dddddd; --line-strong: #cccccc;
+  --accent: var(--royal); --accent-hover: var(--royal-dark); --accent-ink: var(--royal-dark); --accent-soft: var(--royal-light-2); --on-accent: #ffffff;
+  --crit: #a4262c; --crit-soft: #fbdede; --warn: #a34400; --warn-soft: #fcf2e8; --ok: #1a6d0a; --ok-soft: #e5faeb; --info: var(--navy-light-3); --info-soft: var(--royal-light-1);
+  --phone: var(--navy); --sms-in: #f1f1f1; --sms-out: var(--royal); --sms-out-fg: #ffffff; --paper: #fbfaf5; --paper-ink: #2b2b28; --paper-edge: #c9c5b6;
+  --bar-bg: var(--navy); --bar-fg: #ffffff;
   --radius-xs: 4px; --radius-sm: 8px; --radius-md: 16px;
   --shadow-card: 0 1px 3px rgba(5,42,99,0.08), 0 1px 2px rgba(5,42,99,0.06);
-  --shadow-raised: 0 6px 16px rgba(5,42,99,0.10), 0 2px 4px rgba(5,42,99,0.06);
   --shadow-menu: 0 8px 24px rgba(5,42,99,0.14);
   --elevation-2: 0 3px 1px -2px rgba(0,0,0,0.20), 0 2px 2px 0 rgba(0,0,0,0.14), 0 1px 5px 0 rgba(0,0,0,0.12);
   --focus-shadow: 0 0 0 3px rgba(65, 120, 255, 0.4);
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
-  /* prototype tokens mapped onto Integrity semantic aliases */
-  --bg: #fcfcfc; --surface: #ffffff; --surface-2: #f1f1f1; --fg: #272727; --muted: #5f6368; --line: #dddddd;
-  --accent: var(--royal); --accent-hover: var(--royal-dark); --accent-ink: var(--royal-dark); --accent-soft: var(--royal-light-2); --on-accent: #ffffff;
-  --crit: #a4262c; --crit-soft: #fbdede; --warn: #a34400; --warn-soft: #fcf2e8; --ok: #1a6d0a; --ok-soft: #e5faeb; --info: var(--navy-light-3); --info-soft: var(--royal-light-1);
-  --bar-bg: var(--navy); --bar-fg: #ffffff;
-  --phone: var(--navy); --sms-in: #f1f1f1; --sms-out: var(--royal); --sms-out-fg: #ffffff; --paper: #fbfaf5; --paper-ink: #2b2b28;
   --display: "Lato", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   --body: "Lato", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-  --mono: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --data: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   color-scheme: light;
 }
-
-
 * { box-sizing: border-box }
-body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; line-height: 1.45;
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; line-height: 1.45; letter-spacing: .15px;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 96px }
-h1, h2, h3 { font-family: var(--display); font-weight: 600; margin: 0; text-wrap: balance }
-h1 { font-size: 22px } h2 { font-size: 16px } h3 { font-size: 14px }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; margin: 0; text-wrap: balance }
+h1 { font-size: 24px; letter-spacing: -0.25px } h2 { font-size: 16px } h3 { font-size: 14px }
 p { margin: 0 }
 .muted { color: var(--muted) }
-.mono { font-family: var(--mono); font-size: 12px }
-.label { text-transform: uppercase; letter-spacing: .06em; font-size: 11px; font-weight: 600; color: var(--muted) }
-button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 6px 12px }
-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600 }
-button:disabled { opacity: .45; cursor: default }
+.data { font-family: var(--data); font-size: 12px; font-variant-numeric: tabular-nums }
+.label { text-transform: uppercase; letter-spacing: 1px; font-size: 11px; font-weight: 700; color: var(--muted) }
+button { font: inherit; font-weight: 600; letter-spacing: .2px; cursor: pointer; border-radius: var(--radius-xs); border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); padding: 6px 12px;
+  transition: background-color 120ms var(--ease), box-shadow 120ms var(--ease), border-color 120ms var(--ease) }
+button:hover { background: var(--royal-light-1); border-color: var(--accent) }
+button:focus-visible, .lnk:focus-visible { outline: none; box-shadow: var(--focus-shadow) }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent) }
+button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); box-shadow: var(--elevation-2) }
+button:disabled { opacity: .45; cursor: default; box-shadow: none }
 
 .top { display: grid; gap: 6px; margin-bottom: 14px; max-width: 900px }
-.vdesc { font-size: 13px; color: var(--muted); max-width: 75ch }
+.vdesc { font-size: 14px; color: var(--muted); max-width: 80ch }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px }
-.tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden }
-.tabs button { border: 0; border-radius: 0; background: var(--surface) }
-.tabs button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600 }
-.stepcount { font-family: var(--mono); font-size: 12px; color: var(--muted) }
+.tabs { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line-strong); border-radius: var(--radius-xs); overflow: hidden }
+.tabs button { border: 0; border-radius: 0 }
+.tabs button[aria-pressed="true"] { background: var(--royal-light-2); color: var(--accent-ink) }
+.stepcount { font-family: var(--data); font-size: 12px; color: var(--muted) }
 
-.stage { display: grid; grid-template-columns: 340px minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start }
-@media (max-width: 1100px) { .stage { grid-template-columns: 340px minmax(0, 1fr) } .side { grid-column: 1 / -1 } }
+.stage { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 24px; align-items: start; max-width: 1080px }
 @media (max-width: 760px) { .stage { grid-template-columns: minmax(0, 1fr) } }
 
-/* phone */
-.phone { background: var(--phone); border-radius: 34px; padding: 12px; max-width: 340px; width: 100% }
-.screen { background: var(--surface); border-radius: 24px; overflow: hidden; display: grid; grid-template-rows: auto 1fr auto; height: 600px }
-.ph-head { padding: 12px 14px 10px; border-bottom: 1px solid var(--line); text-align: center; display: grid; gap: 1px }
-.ph-head .who { font-weight: 600; font-size: 13px }
-.ph-head .num { font-family: var(--mono); font-size: 11px; color: var(--muted) }
-.msgs { overflow-y: auto; padding: 12px 10px; display: flex; flex-direction: column; gap: 6px; scroll-behavior: smooth }
-.msg { max-width: 82%; padding: 8px 11px; border-radius: 16px; font-size: 13.5px; line-height: 1.38; white-space: pre-wrap; overflow-wrap: anywhere }
-.msg.asst { background: var(--sms-in); align-self: flex-start; border-bottom-left-radius: 5px }
-.msg.client { background: var(--sms-out); color: var(--sms-out-fg); align-self: flex-end; border-bottom-right-radius: 5px }
-.msg.new { animation: pop .25s ease-out }
-.msg .lnk { color: var(--info); text-decoration: underline; font-family: var(--mono); font-size: 12px }
-.msg.client .lnk { color: var(--sms-out-fg) }
+/* ---------- phone ---------- */
+.phone { background: var(--phone); border-radius: 40px; padding: 12px; width: 100%; max-width: 360px; box-shadow: var(--shadow-menu) }
+.screen { background: var(--surface); border-radius: 30px; overflow: hidden; height: 660px; position: relative }
+.view { position: absolute; inset: 0; display: grid; grid-template-rows: auto 1fr auto }
+.view[hidden] { display: none !important }
+.ph-head { padding: 14px 14px 10px; border-bottom: 1px solid var(--line); text-align: center; display: grid; gap: 1px; background: var(--surface) }
+.ph-head .who { font-weight: 700; font-size: 13px }
+.ph-head .num { font-family: var(--data); font-size: 11px; color: var(--muted) }
+.msgs { overflow-y: auto; padding: 12px 10px; display: flex; flex-direction: column; gap: 6px }
+.msg { max-width: 84%; padding: 8px 11px; border-radius: 18px; font-size: 14px; line-height: 1.38; white-space: pre-wrap; overflow-wrap: anywhere }
+.msg.asst { background: var(--sms-in); align-self: flex-start; border-bottom-left-radius: 6px }
+.msg.client { background: var(--sms-out); color: var(--sms-out-fg); align-self: flex-end; border-bottom-right-radius: 6px }
+.msg.new { animation: pop .25s var(--ease) }
+.masknote { align-self: flex-end; font-size: 10px; color: var(--muted); margin: -3px 4px 2px; font-family: var(--data) }
+.lnk { color: var(--royal-dark); text-decoration: underline; font-family: var(--data); font-size: 12.5px; cursor: pointer; border-radius: 3px }
 .sys { align-self: center; font-size: 11px; color: var(--muted); text-align: center; padding: 4px 8px; max-width: 90% }
-.ph-input { border-top: 1px solid var(--line); padding: 8px 10px; display: flex; gap: 6px; align-items: center }
-.ph-input .fake { flex: 1; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; color: var(--muted); font-size: 12px }
-.seg { font-family: var(--mono); font-size: 10px; color: var(--muted); align-self: flex-start; margin: -2px 0 2px 6px }
+.ph-input { border-top: 1px solid var(--line); padding: 8px 10px; display: flex; gap: 6px; align-items: center; background: var(--surface) }
+.ph-input .fake { flex: 1; border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; color: var(--muted); font-size: 12px }
 @keyframes pop { from { transform: translateY(6px); opacity: .3 } to { transform: none; opacity: 1 } }
-@media (prefers-reduced-motion: reduce) { .msg.new { animation: none } .msgs { scroll-behavior: auto } }
+@media (prefers-reduced-motion: reduce) { .msg.new, .view.slide { animation: none } }
 
-/* portal */
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0 }
-.panel-h { padding: 8px 12px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; align-items: center; background: var(--surface-2) }
-.urlbar { font-family: var(--mono); font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-.portal { padding: 16px; display: grid; gap: 14px }
-.portal.closed { color: var(--muted); font-size: 13px; min-height: 120px; place-content: center; text-align: center }
-.due { display: inline-flex; gap: 6px; align-items: baseline; font-size: 13px }
-.due b { font-family: var(--mono) }
-.drop { border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; display: grid; gap: 6px; justify-items: center }
-.drop .big { font-weight: 600 }
-.status { border-radius: 8px; padding: 10px 12px; font-size: 13px; display: grid; gap: 6px }
+/* in-phone browser */
+.view.web { background: var(--bg) }
+.view.slide { animation: slide .22s var(--ease) }
+@keyframes slide { from { transform: translateY(14px); opacity: .4 } to { transform: none; opacity: 1 } }
+.br-bar { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; padding: 12px 10px 8px; background: var(--surface-2); border-bottom: 1px solid var(--line) }
+.br-bar button { border: 0; background: transparent; color: var(--royal-dark); padding: 4px 6px }
+.br-url { font-family: var(--data); font-size: 11px; color: var(--muted); background: var(--surface); border-radius: var(--radius-sm); padding: 5px 10px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.br-url b { color: var(--ok); font-weight: 600 }
+.br-body { overflow-y: auto }
+.br-foot { padding: 6px 10px; font-size: 10px; color: var(--muted); text-align: center; border-top: 1px solid var(--line); background: var(--surface) }
+.pg { padding: 16px 14px; display: grid; gap: 14px }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--navy); font-size: 13px }
+.brand i { width: 22px; height: 22px; border-radius: 6px; background: var(--navy); display: inline-grid; place-items: center; color: #fff; font-style: normal; font-size: 13px; font-weight: 900 }
+.due { font-size: 13px; color: var(--muted) }
+.due b { font-family: var(--data); color: var(--fg) }
+.drop { border: 2px dashed var(--line-strong); border-radius: var(--radius-sm); padding: 18px 12px; text-align: center; display: grid; gap: 8px; justify-items: center; background: var(--surface) }
+.drop .big { font-weight: 700 }
+.drop button { width: 100% }
+.status { border-radius: var(--radius-sm); padding: 12px; font-size: 13px; display: grid; gap: 6px }
 .status.ok { background: var(--ok-soft); color: var(--ok) } .status.warn { background: var(--warn-soft); color: var(--warn) }
-.status.info { background: var(--info-soft); color: var(--info) } .status.work { background: var(--accent-soft); color: var(--accent) }
-.status .t { font-weight: 600 }
+.status.info { background: var(--info-soft); color: var(--info) } .status.work { background: var(--royal-light-1); color: var(--accent-ink) }
+.status.crit { background: var(--crit-soft); color: var(--crit) }
+.status .t { font-weight: 700; font-size: 14px }
 .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px }
 .checks li { display: grid; grid-template-columns: 18px 1fr; gap: 6px }
 .checks .y { color: var(--ok); font-weight: 700 } .checks .n { color: var(--crit); font-weight: 700 }
-details { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px }
-summary { cursor: pointer; font-weight: 600; font-size: 13px }
-details p, details ul { margin-top: 6px; font-size: 13px }
+details { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface) }
+summary { cursor: pointer; font-weight: 700; font-size: 13px }
+details p { margin-top: 6px; font-size: 13px }
 .doclist { display: grid; gap: 6px }
-.docopt { display: grid; grid-template-columns: 16px 1fr; gap: 8px; align-items: start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px }
-.docopt.sel { border-color: var(--accent); background: var(--accent-soft) }
+.docopt { display: grid; grid-template-columns: 16px 1fr; gap: 8px; align-items: start; padding: 9px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 13px; background: var(--surface) }
+.docopt.sel { border-color: var(--accent); background: var(--royal-light-1) }
 .docopt .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--muted); margin-top: 2px }
 .docopt.sel .dot { border-color: var(--accent); background: var(--accent) }
-
-/* specimen pay stub */
-.stubwrap { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 12px; align-items: start }
-@media (max-width: 480px) { .stubwrap { grid-template-columns: minmax(0, 1fr) } }
-.stub { position: relative; background: var(--paper); color: var(--paper-ink); border: 1px solid #c9c5b6; border-radius: 4px; padding: 10px; font-family: var(--mono); font-size: 10px; line-height: 1.5; overflow: hidden; max-width: 220px }
+.stub { position: relative; background: var(--paper); color: var(--paper-ink); border: 1px solid var(--paper-edge); border-radius: 4px; padding: 10px; font-family: var(--data); font-size: 10px; line-height: 1.5; overflow: hidden }
 .stub .row { display: flex; justify-content: space-between; gap: 6px }
 .stub .hd { font-weight: 600; font-size: 11px }
-.stub .wm { position: absolute; inset: 0; display: grid; place-items: center; font-size: 26px; font-weight: 600; color: rgba(180, 35, 42, .18); transform: rotate(-20deg); pointer-events: none; letter-spacing: .1em }
+.stub .wm { position: absolute; inset: 0; display: grid; place-items: center; font-size: 26px; font-weight: 600; color: rgba(164, 38, 44, .16); transform: rotate(-20deg); pointer-events: none; letter-spacing: .1em }
 .stub .hl { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 2px }
-.stub.cropped { height: 108px }
-.stub.cropped .inner { margin-top: -46px }
-.stub.cropped::before { content: "✗ name and pay period cut off"; position: absolute; inset: 0 0 auto; padding: 2px 6px; font-size: 9px; color: var(--crit); background: var(--crit-soft); border-bottom: 2px dashed var(--crit); z-index: 1 }
-.stub .bad { outline: 2px dashed var(--crit); outline-offset: 1px }
 .cap { font-size: 12px; color: var(--muted) }
+.fineprint { font-size: 11px; color: var(--muted) }
 
-/* side: behind the scenes */
-.side { display: grid; gap: 12px; min-width: 0 }
+/* ---------- behind the scenes ---------- */
+.side { background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-card); border: 1px solid var(--line); min-width: 0 }
+.side-h { padding: 10px 16px; border-bottom: 1px solid var(--surface-2) }
+.side-b { padding: 16px; display: grid; gap: 14px }
 .dmi { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
-.chip { display: inline-flex; align-items: center; font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 999px; white-space: nowrap }
+.chip { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-sm); white-space: nowrap }
 .chip.crit { background: var(--crit-soft); color: var(--crit) } .chip.warn { background: var(--warn-soft); color: var(--warn) }
 .chip.ok { background: var(--ok-soft); color: var(--ok) } .chip.info { background: var(--info-soft); color: var(--info) }
-.chip.work { background: var(--accent-soft); color: var(--accent) }
-.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px }
-.log li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; font-size: 13px; padding-bottom: 8px; border-bottom: 1px solid var(--line) }
-.log .tool { font-family: var(--mono); font-size: 12px; color: var(--accent); grid-row: span 2 }
-.log .cr { font-family: var(--mono); font-size: 11px; color: var(--muted) }
-.log li.esc .tool { color: var(--crit) } .log li.note .tool { color: var(--info) }
-.agentbox { border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; font-size: 13px }
+.log { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px }
+.log li { display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr); gap: 2px 10px; font-size: 13px; padding-bottom: 8px; border-bottom: 1px solid var(--surface-2) }
+.log .tool { font-family: var(--data); font-size: 12px; color: var(--accent-ink); grid-row: span 2; overflow-wrap: anywhere }
+.log .cr { font-family: var(--data); font-size: 11px; color: var(--muted) }
+.log li.esc .tool { color: var(--crit) } .log li.guard .tool { color: var(--warn) }
+.agentbox { border-radius: var(--radius-sm); padding: 10px 12px; display: grid; gap: 4px; font-size: 13px }
 .agentbox.esc { background: var(--crit-soft); color: var(--crit) } .agentbox.note { background: var(--info-soft); color: var(--info) }
-.agentbox .t { font-weight: 600 }
-.watch { font-size: 12px; color: var(--muted); border-left: 3px solid var(--line); padding-left: 10px; display: grid; gap: 4px }
+.agentbox .t { font-weight: 700 }
+.watch { font-size: 13px; color: var(--fg); background: var(--royal-light-1); border-radius: var(--radius-sm); padding: 10px 12px; display: grid; gap: 4px }
 
 /* switcher (prototype chrome, not part of the design) */
 .switcher { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 4px;
-  background: var(--bar-bg); color: var(--bar-fg); border-radius: 999px; padding: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 20; max-width: calc(100% - 32px) }
+  background: var(--bar-bg); color: var(--bar-fg); border-radius: 999px; padding: 6px; box-shadow: var(--shadow-menu); z-index: 20; max-width: calc(100% - 32px) }
 .switcher button { background: transparent; color: var(--bar-fg); border: 0; border-radius: 999px; padding: 6px 12px; font-size: 16px }
-.switcher button:hover { background: rgba(127,127,127,.25) }
-.switcher .lbl { font-size: 13px; font-weight: 600; padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-
-/* ---------- Integrity design system treatment ---------- */
-body { letter-spacing: .15px }
-h1, h2, h3 { font-weight: 700; letter-spacing: 0 }
-h1 { font-size: 24px; letter-spacing: -0.25px }
-.label { font-weight: 700; letter-spacing: 1px; font-size: 11px }
-button { border-radius: var(--radius-xs); font-weight: 600; letter-spacing: .2px; border-color: #cccccc;
-  transition: background-color 120ms var(--ease), box-shadow 120ms var(--ease), border-color 120ms var(--ease) }
-button:hover { background: var(--royal-light-1); border-color: var(--accent) }
-button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); box-shadow: var(--elevation-2) }
-button:focus-visible { outline: none; box-shadow: var(--focus-shadow) }
-.chip { border-radius: var(--radius-sm) }
-.chip.work { color: var(--accent-ink) }
-.switcher { box-shadow: var(--shadow-menu) }
 .switcher button:hover { background: rgba(255,255,255,.14) }
-
-.panel { border-radius: var(--radius-md); box-shadow: var(--shadow-card) }
-.panel-h { background: var(--surface); border-bottom-color: #f1f1f1 }
-.tabs { border-radius: var(--radius-xs); border-color: #cccccc }
-.tabs button[aria-pressed="true"] { background: var(--royal-light-2); color: var(--accent-ink) }
-.status, details, .docopt, .agentbox, .drop { border-radius: var(--radius-sm) }
-.docopt.sel .dot { border-color: var(--accent); background: var(--accent) }
-.docopt.sel { border-color: var(--accent); background: var(--royal-light-1) }
-.log .tool { color: var(--accent-ink) }
-.msg .lnk { color: var(--royal-dark) }
+.switcher .lbl { font-size: 13px; font-weight: 700; padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 </style>
 
 <div class="top">
@@ -177,8 +153,9 @@ button:focus-visible { outline: none; box-shadow: var(--focus-shadow) }
 
 <div class="controls">
   <div class="tabs" role="group" aria-label="Scene">
-    <button id="scene-happy" aria-pressed="true">Happy path · Rosa</button>
-    <button id="scene-change" aria-pressed="false">Income changed · Marcus</button>
+    <button id="scene-happy">Happy path · Rosa</button>
+    <button id="scene-change">Income changed · Marcus</button>
+    <button id="scene-secure">Security moments · Ada</button>
   </div>
   <button class="primary" id="next">Next step ▸</button>
   <button id="all">Play all</button>
@@ -189,27 +166,27 @@ button:focus-visible { outline: none; box-shadow: var(--focus-shadow) }
 <div class="stage">
   <div class="phone" aria-label="Client's phone">
     <div class="screen">
-      <div class="ph-head"><span class="who" id="phwho"></span><span class="num">(555) 010-4471 · Text message</span></div>
-      <div class="msgs" id="msgs" aria-live="polite"></div>
-      <div class="ph-input"><span class="fake">Text message</span></div>
+      <div class="view" id="v-msgs">
+        <div class="ph-head"><span class="who">Andrew's AI assistant</span><span class="num">(555) 010-4471 · Text message</span></div>
+        <div class="msgs" id="msgs" aria-live="polite"></div>
+        <div class="ph-input"><span class="fake">Text message</span></div>
+      </div>
+      <div class="view web" id="v-web" hidden>
+        <div class="br-bar"><button id="done">Done</button><span class="br-url"><svg width="9" height="11" viewBox="0 0 9 11" aria-label="Secure" style="vertical-align:-1px;margin-right:3px"><rect x="0.5" y="4.5" width="8" height="6" rx="1.2" fill="var(--ok)"/><path d="M2.3 4.5V3a2.2 2.2 0 0 1 4.4 0v1.5" fill="none" stroke="var(--ok)" stroke-width="1.2"/></svg>portal.example/r/<span id="tok">7Q2K</span></span></div>
+        <div class="br-body" id="portal"></div>
+        <div class="br-foot">Secure upload · this page shows no personal information</div>
+      </div>
     </div>
   </div>
 
-  <section class="panel" aria-label="Client portal page">
-    <div class="panel-h"><span class="label">Portal page (Client's browser)</span><span class="urlbar">portal.example/r/7Q2K</span></div>
-    <div id="portal"></div>
-  </section>
-
   <aside class="side" aria-label="Behind the scenes">
-    <section class="panel">
-      <div class="panel-h"><span class="label">Behind the scenes</span></div>
-      <div class="portal">
-        <div class="dmi"><span class="label">DMI</span><span id="dmitype"></span><span id="dmistatus"></span><span class="mono muted" id="dmidue"></span></div>
-        <div id="agentbox"></div>
-        <div><span class="label">Assistant actions</span><ul class="log" id="log" style="margin-top:6px"></ul></div>
-        <div class="watch" id="watch"></div>
-      </div>
-    </section>
+    <div class="side-h"><span class="label">Behind the scenes</span></div>
+    <div class="side-b">
+      <div class="dmi"><span class="label">DMI</span><span id="dmitype"></span><span id="dmistatus"></span><span class="data muted" id="dmidue"></span></div>
+      <div class="watch" id="watch"></div>
+      <div id="agentbox"></div>
+      <div><span class="label">Assistant actions, newest first</span><ul class="log" id="log"></ul></div>
+    </div>
   </aside>
 </div>
 
@@ -223,217 +200,266 @@ button:focus-visible { outline: none; box-shadow: var(--focus-shadow) }
 // ---------- dates relative to the run date ----------
 const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
 const inDays = n => new Date(TODAY.getTime() + n * 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-const ROSA_DUE = inDays(10), MARCUS_DUE = inDays(23);
 const LINK = '⟦link⟧';
 
-// ---------- variants ----------
+const PEOPLE = {
+  happy:  { first: 'Rosa',   full: 'Rosa Delgado-Finch', dmi: 'income', due: inDays(10), left: 10, cr: 'CR-1041' },
+  change: { first: 'Marcus', full: 'Marcus Whitlow',     dmi: 'income', due: inDays(23), left: 23, cr: 'CR-1007' },
+  secure: { first: 'Ada',    full: 'Ada Nkemelu',        dmi: 'ssn',    due: inDays(26), left: 26, cr: 'CR-1035' },
+};
+
 const VARIANTS = {
   a: { key: 'A', name: 'Everything in the text',
-       desc: 'The Thread carries all of it: the why, the list of documents that work, and the full list of fixes after a bad upload. The portal page is upload only, as decided in Assistant autonomy boundaries.' },
-  b: { key: 'B', name: 'Short texts, smart upload page',
-       desc: 'Texts stay to one or two lines and point to the portal. The portal page explains why, lets the Client pick a document, shows a SPECIMEN with the required fields highlighted, and marks problems on the uploaded photo. This stretches the "portal for uploads only" decision.' },
+       desc: 'The texts carry everything: why the Marketplace is asking, the documents that work, and the full list of fixes after a bad upload. Tapping the link opens a plain upload page in the phone browser.' },
+  b: { key: 'B', name: 'Short texts, helpful upload page',
+       desc: 'Texts stay to a line or two. The upload page explains why, lets the Client pick a document, and shows a SPECIMEN with the required parts highlighted. After a bad upload it lists the fixes, but never shows the Client\'s photo back (Security and risk, #11).' },
   c: { key: 'C', name: 'Guided by questions',
-       desc: 'The Assistant asks one short question (how are you paid?) and recommends the single best document, with a checklist of what the photo must show. After a bad upload it replays the same checklist with ✓ and ✗. The portal page stays upload only.' },
+       desc: 'The Assistant asks one short question and recommends the single best document, with a checklist of what the photo must show. After a bad upload it repeats the checklist with ✓ and ✗. The upload page stays plain.' },
 };
 const ORDER = ['a', 'b', 'c'];
 
-// step: { a: asst text | c: client text | s: system line, p: portal state, log: [tool, detail, kind], dmi: status, agent: {...}, watch: text }
-const asstLog = d => ['send_text', d];
+// Step fields: a = Assistant text, c = Client text, s = narration, web = true opens the phone browser,
+// p = portal state, dmi = DMI status, log = [tool, detail, kind], agent = Agent view item, watch = what to judge, tok = new link token
+const send = d => ['send_text', d];
+const NOTE_SUBMITTED = who => ({ kind: 'note', t: 'Notification: documents submitted', d: `${who}. No action needed.` });
+const NOTE_RESOLVED = who => ({ kind: 'note', t: 'Notification: DMI resolved', d: `${who}. No action needed.` });
+const ESC_INCOME = { kind: 'esc', t: 'Escalation: income changed', d: 'Marcus says he changed jobs last month and earns less. Suggested next step: call Marcus to review and update projected income.' };
+const MASKED = "Can't I just text you my number? It's •••-••-4471";
+const ROSA = PEOPLE.happy, MARCUS = PEOPLE.change, ADA = PEOPLE.secure;
+
 const SCRIPTS = {
   a: {
     happy: [
-      { a: `Hi Rosa, this is the AI assistant working with your insurance agent, Andrew. The Marketplace needs proof of your income by ${ROSA_DUE} to keep your help paying premiums. A recent pay stub is the easiest way. Upload it here: ${LINK}\n\nQuestions? Just reply. Reply STOP to opt out.`, log: asstLog('Initial text with portal link'), dmi: 'open', p: 'idle',
-        watch: 'AI disclosure and STOP in the first text. Deadline from the DMI notice.' },
+      { a: `Hi Rosa, this is the AI assistant working with your insurance agent, Andrew. The Marketplace needs proof of your income by ${ROSA.due} to keep your help paying premiums. A recent pay stub is the easiest way. Upload it here: ${LINK}\n\nQuestions? Just reply. Reply STOP to opt out.`, log: send('Initial text with Portal link'), dmi: 'open', p: 'open',
+        watch: 'AI disclosure and STOP in the first text. Tap the link in the bubble any time to open the upload page.' },
       { c: 'Why do they need this? I already applied.' },
-      { a: `The Marketplace compared the income on your application with records from other sources, like the IRS, and they didn't match closely enough. This is routine and doesn't mean you did anything wrong.\n\nIf they don't get proof by ${ROSA_DUE}, your monthly help paying premiums could be lowered or stopped.`, log: asstLog('Answered "why is this needed"') },
+      { a: `The Marketplace compared the income on your application with records from other sources, like the IRS, and they didn't match closely enough. This is routine and doesn't mean you did anything wrong.\n\nIf they don't get proof by ${ROSA.due}, your monthly help paying premiums could be lowered or stopped.`, log: send('Answered "why is this needed"') },
       { c: "What if I can't find a pay stub?" },
-      { a: 'Any one of these works:\n• Your most recent pay stub\n• A letter from your employer showing your pay\n• Your 2025 tax return or W-2, if your pay is about the same this year\n\nA pay stub needs to show your name, your pay, the pay period, and the pay date.', log: asstLog('Listed documents that work for an income DMI'),
+      { a: 'Any one of these works:\n• Your most recent pay stub\n• A letter from your employer showing your pay\n• Your 2025 tax return or W-2, if your pay is about the same this year\n\nA pay stub needs to show your name, your pay, the pay period, and the pay date.', log: send('Listed documents that work for an income DMI'),
         watch: 'Success criterion 1: names the right documents for this DMI.' },
-      { s: 'Rosa opens the link and uploads a phone photo', p: 'checking', log: ['precheck_document', 'Running checks on photo'] },
+      { s: 'Rosa taps the link', web: true, p: 'open', watch: 'Same phone, no app switch. The page shows first name, DMI type and due date only.' },
+      { s: 'Rosa takes a photo of her pay stub', web: true, p: 'checking', log: ['precheck_document', 'Running checks on photo'] },
       { a: "Thanks, I got your photo. I can't send it yet because:\n1. Your name isn't visible (the top is cut off)\n2. The pay period dates aren't visible\n\nPlease take a new photo of the whole stub, flat and in good light, and upload it at the same link. Everything else looked good.", p: 'insufficient', log: ['precheck_document', 'Insufficient: name and pay period missing'],
-        watch: 'Success criterion 2: flags the bad upload and says why. All issues at once, not one at a time.' },
-      { s: 'Rosa uploads a new photo', p: 'checking', log: ['precheck_document', 'Running checks on second photo'] },
-      { a: "That one works. I sent it to the Marketplace today. I'll text you when they finish reviewing it. Nothing else is needed from you.", p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Pay stub submitted'], agent: { kind: 'note', t: 'Notification: documents submitted', d: 'Rosa Delgado-Finch, income DMI. No action needed.' },
+        watch: 'Success criterion 2: flags the bad upload and says why. All issues at once.' },
+      { s: 'Rosa taps the link again and retakes the photo', web: true, p: 'checking', log: ['precheck_document', 'Running checks on second photo'] },
+      { a: "That one works. I sent it to the Marketplace today. I'll text you when they finish reviewing it. Nothing else is needed from you.", p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Pay stub submitted'], agent: NOTE_SUBMITTED(ROSA.full),
         watch: 'Review time is still fog on the map, so the text promises no date.' },
       { s: 'Fast-forward: the mocked Marketplace finishes its review', p: 'resolved', dmi: 'resolved', log: ['get_dmi_status', 'Marketplace marked resolved'] },
-      { a: 'Good news: the Marketplace accepted your document and closed the request. Your coverage and premium help continue as they are.', log: asstLog('Told Rosa the DMI is resolved'), agent: { kind: 'note', t: 'Notification: DMI resolved', d: 'Rosa Delgado-Finch. No action needed.' },
+      { a: 'Good news: the Marketplace accepted your document and closed the request. Your coverage and premium help continue as they are.', log: send('Told Rosa the DMI is resolved'), agent: NOTE_RESOLVED(ROSA.full),
         watch: 'Success criterion 3: the mocked Marketplace shows resolved.' },
     ],
     change: [
-      { a: `Hi Marcus, this is the AI assistant working with your insurance agent, Andrew. The Marketplace needs proof of your income by ${MARCUS_DUE} to keep your help paying premiums. A recent pay stub is the easiest way. Upload it here: ${LINK}\n\nQuestions? Just reply. Reply STOP to opt out.`, log: asstLog('Initial text with portal link'), dmi: 'open', p: 'idle' },
+      { a: `Hi Marcus, this is the AI assistant working with your insurance agent, Andrew. The Marketplace needs proof of your income by ${MARCUS.due} to keep your help paying premiums. A recent pay stub is the easiest way. Upload it here: ${LINK}\n\nQuestions? Just reply. Reply STOP to opt out.`, log: send('Initial text with Portal link'), dmi: 'open', p: 'open' },
       { c: 'I switched jobs last month, so my pay is lower now. Does that matter?' },
-      { a: "It might, so I'm handing this to Andrew. Updating the income on your application has to be done by your licensed agent, not by me. I've sent him the details and he'll contact you.\n\nPlease hold off on uploading anything until you've talked with him.", p: 'paused', dmi: 'escalated', log: ['escalate_to_agent', 'Income change reported', 'esc'],
-        agent: { kind: 'esc', t: 'Escalation: income changed', d: 'Marcus says he changed jobs last month and earns less. Suggested next step: call Marcus to review and update projected income.' },
+      { a: "It might, so I'm handing this to Andrew. Updating the income on your application has to be done by your licensed agent, not by me. I've sent him the details and he'll contact you.\n\nPlease hold off on uploading anything until you've talked with him.", p: 'paused', dmi: 'escalated', log: ['escalate_to_agent', 'Income change reported', 'esc'], agent: ESC_INCOME,
         watch: 'Success criterion 5: the Agent gets the trigger, a summary, the Client\'s words and a next step. The Assistant gives no advice on what to report.' },
+      { s: 'Marcus taps the link anyway', web: true, watch: 'The page knows the DMI is with the Agent and does not ask for an upload.' },
       { c: 'Ok thanks' },
-      { s: 'The Assistant stays paused for Marcus until Andrew marks the Escalation handled', log: ['(paused)', 'No further texts to Marcus', 'note'] },
+      { s: 'The Assistant stays paused for Marcus until Andrew marks the Escalation handled', log: ['(paused)', 'No further texts to Marcus', 'guard'] },
+    ],
+    secure: [
+      { a: `Hi Ada, this is the AI assistant working with your insurance agent, Andrew. The Marketplace needs a document showing your Social Security number by ${ADA.due} to keep your coverage. A photo of your Social Security card is the easiest way. Upload it here: ${LINK}\n\nQuestions? Just reply. Reply STOP to opt out.`, log: send('Initial text with Portal link'), dmi: 'open', p: 'open' },
+      { c: MASKED, masked: true, log: ['(guardrail)', 'SSN in Client text masked before storage', 'guard'],
+        watch: 'The full number is masked before it is stored or sent to the model. Only the last 4 digits remain.' },
+      { a: "Please don't send your Social Security number by text, since texts aren't secure. The Marketplace also needs to see a document, not just the number. Please use the link I sent instead.", log: send('Asked Ada to use the Portal link, not text') },
+      { s: 'Fast-forward 4 days. Ada finds the text and taps the link', web: true, p: 'expired',
+        watch: 'Portal links expire after 72 hours (configurable). The page tells Ada how to get a new one. No login, no date-of-birth questions.' },
+      { c: "The link says it's expired" },
+      { a: `Here's a new link. It works for the next 3 days: ${LINK}`, tok: '9MX4', p: 'open', log: ['create_portal_link', 'New Portal link (1 of 3 allowed today)'],
+        watch: 'Any reply gets a fresh link. After 3 links in 24 hours the Assistant stops and the Agent gets a Notification.' },
+      { s: 'Ada taps the new link and photographs her Social Security card', web: true, p: 'checking', log: ['precheck_document', 'Running checks on photo'] },
+      { a: "That works. I sent it to the Marketplace today and I'll text you when they finish reviewing it. Nothing else is needed from you.", p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Social Security card submitted'], agent: NOTE_SUBMITTED(ADA.full) },
     ],
   },
   b: {
     happy: [
-      { a: `Hi Rosa, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs proof of your income by ${ROSA_DUE}. Everything you need is here: ${LINK}\nReply with any questions. Reply STOP to opt out.`, log: asstLog('Initial text with portal link'), dmi: 'open', p: 'idle',
+      { a: `Hi Rosa, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs proof of your income by ${ROSA.due}. Everything you need is here: ${LINK}\nReply with any questions. Reply STOP to opt out.`, log: send('Initial text with Portal link'), dmi: 'open', p: 'open',
         watch: 'The text is short. The explaining happens on the page.' },
       { c: 'Why do they need this? I already applied.' },
-      { a: `It's a routine check. The Marketplace couldn't match your income with its records. Without proof by ${ROSA_DUE}, your premium help could stop. The page explains more: ${LINK}`, log: asstLog('Answered "why is this needed"') },
-      { s: 'Rosa opens the link', p: 'open', watch: 'Success criterion 1 lives on the page: the list of documents that work, with a SPECIMEN example.' },
-      { s: 'Rosa picks "Pay stub" and uploads a phone photo', p: 'checking', log: ['precheck_document', 'Running checks on photo'] },
-      { s: 'The page shows the problems on her photo', p: 'insufficient', log: ['precheck_document', 'Insufficient: name and pay period missing'] },
-      { a: `I checked your photo. 2 things to fix, marked here: ${LINK}`, log: asstLog('Pointed to the fixes on the page'),
-        watch: 'If Rosa closed the page, the text brings her back. The fixes themselves are on the page.' },
-      { s: 'Rosa retakes the photo and uploads it', p: 'checking', log: ['precheck_document', 'Running checks on second photo'] },
-      { s: 'The page confirms it was sent', p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Pay stub submitted'], agent: { kind: 'note', t: 'Notification: documents submitted', d: 'Rosa Delgado-Finch, income DMI. No action needed.' } },
-      { a: "Got it. I sent your pay stub to the Marketplace. I'll text you when they're done.", log: asstLog('Confirmed submission') },
+      { a: `It's a routine check. The Marketplace couldn't match your income with its records. Without proof by ${ROSA.due}, your premium help could stop. The link explains more: ${LINK}`, log: send('Answered "why is this needed"') },
+      { s: 'Rosa taps the link', web: true, p: 'open', watch: 'Success criterion 1 lives on the page: documents that work, plus a SPECIMEN example.' },
+      { s: 'Rosa picks "Pay stub" and takes a photo', web: true, p: 'checking', log: ['precheck_document', 'Running checks on photo'] },
+      { s: 'The page lists what to fix', web: true, p: 'insufficient', log: ['precheck_document', 'Insufficient: name and pay period missing'],
+        watch: 'The fixes are listed, but the page never shows the Client\'s photo back.' },
+      { a: `I checked your photo. 2 things to fix, listed here: ${LINK}`, log: send('Pointed to the fixes on the page'),
+        watch: 'If Rosa closed the page, the text brings her back.' },
+      { s: 'Rosa retakes the photo', web: true, p: 'checking', log: ['precheck_document', 'Running checks on second photo'] },
+      { s: 'The page confirms it was sent', web: true, p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Pay stub submitted'], agent: NOTE_SUBMITTED(ROSA.full) },
+      { a: "Got it. I sent your pay stub to the Marketplace. I'll text you when they're done.", log: send('Confirmed submission') },
       { s: 'Fast-forward: the mocked Marketplace finishes its review', p: 'resolved', dmi: 'resolved', log: ['get_dmi_status', 'Marketplace marked resolved'] },
-      { a: "All set. The Marketplace accepted your document. Your coverage and premium help don't change.", log: asstLog('Told Rosa the DMI is resolved'), agent: { kind: 'note', t: 'Notification: DMI resolved', d: 'Rosa Delgado-Finch. No action needed.' } },
+      { a: "All set. The Marketplace accepted your document. Your coverage and premium help don't change.", log: send('Told Rosa the DMI is resolved'), agent: NOTE_RESOLVED(ROSA.full) },
     ],
     change: [
-      { a: `Hi Marcus, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs proof of your income by ${MARCUS_DUE}. Everything you need is here: ${LINK}\nReply with any questions. Reply STOP to opt out.`, log: asstLog('Initial text with portal link'), dmi: 'open', p: 'idle' },
-      { s: 'Marcus opens the link and reads the page', p: 'open' },
+      { a: `Hi Marcus, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs proof of your income by ${MARCUS.due}. Everything you need is here: ${LINK}\nReply with any questions. Reply STOP to opt out.`, log: send('Initial text with Portal link'), dmi: 'open', p: 'open' },
+      { s: 'Marcus taps the link and reads the page', web: true, p: 'open' },
       { c: 'I switched jobs last month, so my pay is lower now. Does that matter?' },
-      { a: "It might. Andrew, your licensed agent, needs to update your application, so I've passed this to him and he'll contact you. Please don't upload anything yet.", p: 'paused', dmi: 'escalated', log: ['escalate_to_agent', 'Income change reported', 'esc'],
-        agent: { kind: 'esc', t: 'Escalation: income changed', d: 'Marcus says he changed jobs last month and earns less. Suggested next step: call Marcus to review and update projected income.' },
-        watch: 'The page switches to "your agent will contact you" so it doesn\'t keep asking for an upload.' },
+      { a: "It might. Andrew, your licensed agent, needs to update your application, so I've passed this to him and he'll contact you. Please don't upload anything yet.", p: 'paused', dmi: 'escalated', log: ['escalate_to_agent', 'Income change reported', 'esc'], agent: ESC_INCOME },
+      { s: 'Marcus goes back to the page', web: true, watch: 'The page switches to "your agent will contact you" so it doesn\'t keep asking for an upload.' },
+    ],
+    secure: [
+      { a: `Hi Ada, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs a document showing your Social Security number by ${ADA.due}. Everything you need is here: ${LINK}\nReply with any questions. Reply STOP to opt out.`, log: send('Initial text with Portal link'), dmi: 'open', p: 'open' },
+      { c: MASKED, masked: true, log: ['(guardrail)', 'SSN in Client text masked before storage', 'guard'],
+        watch: 'The full number is masked before it is stored or sent to the model.' },
+      { a: "Please don't send your Social Security number by text. The Marketplace needs a document, and the link shows which ones work.", log: send('Asked Ada to use the Portal link, not text') },
+      { s: 'Fast-forward 4 days. Ada taps the link', web: true, p: 'expired', watch: 'Expired after 72 hours. The page tells Ada to text for a new link.' },
+      { c: 'Expired?' },
+      { a: `Here's a new link, good for 3 days: ${LINK}`, tok: '9MX4', p: 'open', log: ['create_portal_link', 'New Portal link (1 of 3 allowed today)'] },
+      { s: 'Ada taps the new link and picks "Social Security card"', web: true, p: 'open' },
+      { s: 'Ada photographs her card', web: true, p: 'checking', log: ['precheck_document', 'Running checks on photo'] },
+      { s: 'The page confirms it was sent', web: true, p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Social Security card submitted'], agent: NOTE_SUBMITTED(ADA.full) },
     ],
   },
   c: {
     happy: [
-      { a: `Hi Rosa, this is the AI assistant working with your insurance agent, Andrew. The Marketplace needs proof of your income by ${ROSA_DUE} to keep your help paying premiums.\n\nTo find the easiest document for you: how are you paid now?\n1. By an employer (paycheck)\n2. Self-employed or gig work\n3. Benefits, like Social Security or unemployment\n4. Something else\n\nReply STOP to opt out.`, log: asstLog('Initial text with a question'), dmi: 'open', p: 'idle',
+      { a: `Hi Rosa, this is the AI assistant working with your insurance agent, Andrew. The Marketplace needs proof of your income by ${ROSA.due} to keep your help paying premiums.\n\nTo find the easiest document for you: how are you paid now?\n1. By an employer (paycheck)\n2. Self-employed or gig work\n3. Benefits, like Social Security or unemployment\n4. Something else\n\nReply STOP to opt out.`, log: send('Initial text with a question'), dmi: 'open',
         watch: 'No link yet. The link comes once the Assistant knows which document to ask for.' },
       { c: 'Why do they need this? I already applied.' },
-      { a: `The Marketplace compared your application with records from other sources, like the IRS, and the income didn't match closely enough. It's routine and doesn't mean you did anything wrong. Without proof by ${ROSA_DUE}, your premium help could be lowered or stopped.\n\nWhen you're ready, reply 1, 2, 3 or 4 and I'll tell you exactly what to send.`, log: asstLog('Answered "why is this needed"') },
+      { a: `The Marketplace compared your application with records from other sources, like the IRS, and the income didn't match closely enough. It's routine and doesn't mean you did anything wrong. Without proof by ${ROSA.due}, your premium help could be lowered or stopped.\n\nWhen you're ready, reply 1, 2, 3 or 4 and I'll tell you exactly what to send.`, log: send('Answered "why is this needed"') },
       { c: '1' },
-      { a: `Then your most recent pay stub is the one to send. Make sure the photo shows:\n☐ Your name\n☐ Your pay\n☐ The pay period dates\n☐ The pay date\n\nUpload it here: ${LINK}`, log: ['create_portal_link', 'Link for a pay stub'],
+      { a: `Then your most recent pay stub is the one to send. Make sure the photo shows:\n☐ Your name\n☐ Your pay\n☐ The pay period dates\n☐ The pay date\n\nUpload it here: ${LINK}`, p: 'open', log: ['create_portal_link', 'Portal link for a pay stub'],
         watch: 'Success criterion 1: one recommended document, plus what it must show.' },
-      { s: 'Rosa opens the link and uploads a phone photo', p: 'checking', log: ['precheck_document', 'Running checks on photo'] },
+      { s: 'Rosa taps the link and takes a photo', web: true, p: 'checking', log: ['precheck_document', 'Running checks on photo'] },
       { a: "I checked your photo:\n✗ Your name (the top is cut off)\n✓ Your pay\n✗ The pay period dates\n✓ The pay date\n\nPlease retake it showing the whole stub, flat and in good light. Same link.", p: 'insufficient', log: ['precheck_document', 'Insufficient: name and pay period missing'],
         watch: 'Same checklist as before, now marked. The Client sees what passed as well as what failed.' },
-      { s: 'Rosa uploads a new photo', p: 'checking', log: ['precheck_document', 'Running checks on second photo'] },
-      { a: "✓ All four look good. I sent it to the Marketplace today and I'll text you when they finish reviewing it. Nothing else is needed from you.", p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Pay stub submitted'], agent: { kind: 'note', t: 'Notification: documents submitted', d: 'Rosa Delgado-Finch, income DMI. No action needed.' } },
+      { s: 'Rosa taps the link again and retakes the photo', web: true, p: 'checking', log: ['precheck_document', 'Running checks on second photo'] },
+      { a: "✓ All four look good. I sent it to the Marketplace today and I'll text you when they finish reviewing it. Nothing else is needed from you.", p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Pay stub submitted'], agent: NOTE_SUBMITTED(ROSA.full) },
       { s: 'Fast-forward: the mocked Marketplace finishes its review', p: 'resolved', dmi: 'resolved', log: ['get_dmi_status', 'Marketplace marked resolved'] },
-      { a: 'Good news: the Marketplace accepted your pay stub and closed the request. Your coverage and premium help continue as they are.', log: asstLog('Told Rosa the DMI is resolved'), agent: { kind: 'note', t: 'Notification: DMI resolved', d: 'Rosa Delgado-Finch. No action needed.' } },
+      { a: 'Good news: the Marketplace accepted your pay stub and closed the request. Your coverage and premium help continue as they are.', log: send('Told Rosa the DMI is resolved'), agent: NOTE_RESOLVED(ROSA.full) },
     ],
     change: [
-      { a: `Hi Marcus, this is the AI assistant working with your insurance agent, Andrew. The Marketplace needs proof of your income by ${MARCUS_DUE} to keep your help paying premiums.\n\nTo find the easiest document for you: how are you paid now?\n1. By an employer (paycheck)\n2. Self-employed or gig work\n3. Benefits, like Social Security or unemployment\n4. Something else\n\nReply STOP to opt out.`, log: asstLog('Initial text with a question'), dmi: 'open', p: 'idle' },
+      { a: `Hi Marcus, this is the AI assistant working with your insurance agent, Andrew. The Marketplace needs proof of your income by ${MARCUS.due} to keep your help paying premiums.\n\nTo find the easiest document for you: how are you paid now?\n1. By an employer (paycheck)\n2. Self-employed or gig work\n3. Benefits, like Social Security or unemployment\n4. Something else\n\nReply STOP to opt out.`, log: send('Initial text with a question'), dmi: 'open' },
       { c: '1, but I switched jobs last month so my pay is lower now. Does that matter?' },
-      { a: "It might, so I'm handing this to Andrew. Updating the income on your application has to be done by your licensed agent, not by me. I've sent him the details and he'll contact you.\n\nPlease hold off on uploading anything until you've talked with him.", p: 'paused', dmi: 'escalated', log: ['escalate_to_agent', 'Income change reported', 'esc'],
-        agent: { kind: 'esc', t: 'Escalation: income changed', d: 'Marcus says he changed jobs last month and earns less. Suggested next step: call Marcus to review and update projected income.' },
-        watch: 'The guiding question surfaces the job change early, before any upload.' },
+      { a: "It might, so I'm handing this to Andrew. Updating the income on your application has to be done by your licensed agent, not by me. I've sent him the details and he'll contact you.\n\nPlease hold off on uploading anything until you've talked with him.", p: 'paused', dmi: 'escalated', log: ['escalate_to_agent', 'Income change reported', 'esc'], agent: ESC_INCOME,
+        watch: 'The guiding question surfaces the job change before any link is sent.' },
+    ],
+    secure: [
+      { a: `Hi Ada, this is the AI assistant working with your insurance agent, Andrew. The Marketplace needs a document showing your Social Security number by ${ADA.due} to keep your coverage.\n\nWhich of these do you have handy?\n1. Your Social Security card\n2. A W-2 or 1099\n3. A tax return\n4. None of these\n\nReply STOP to opt out.`, log: send('Initial text with a question'), dmi: 'open' },
+      { c: MASKED, masked: true, log: ['(guardrail)', 'SSN in Client text masked before storage', 'guard'],
+        watch: 'The full number is masked before it is stored or sent to the model.' },
+      { a: "Please don't send your Social Security number by text, since texts aren't secure. The Marketplace also needs to see a document, not just the number.\n\nWhich of these do you have handy? Reply 1, 2, 3 or 4.", log: send('Asked Ada to use a document, not text') },
+      { c: '1' },
+      { a: `Then a photo of your Social Security card is perfect. Make sure it shows:\n☐ Your full name\n☐ Your full number\n\nUpload it here: ${LINK}`, p: 'open', log: ['create_portal_link', 'Portal link for an SSN card'] },
+      { s: 'Fast-forward 4 days. Ada taps the link', web: true, p: 'expired', watch: 'Expired after 72 hours. The page tells Ada to text for a new link.' },
+      { c: "The link says it's expired" },
+      { a: `Here's a new link. It works for the next 3 days: ${LINK}`, tok: '9MX4', p: 'open', log: ['create_portal_link', 'New Portal link (1 of 3 allowed today)'] },
+      { s: 'Ada taps the new link and photographs her card', web: true, p: 'checking', log: ['precheck_document', 'Running checks on photo'] },
+      { a: "✓ Both look good. I sent it to the Marketplace today and I'll text you when they finish reviewing it.", p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Social Security card submitted'], agent: NOTE_SUBMITTED(ADA.full) },
     ],
   },
 };
 
-// ---------- portal rendering ----------
-function stub({ cropped = false, highlight = false, marks = false } = {}) {
-  const hl = highlight ? ' hl' : '', bad = marks ? ' bad' : '';
-  return `<div class="stub${cropped ? ' cropped' : ''}" aria-label="SPECIMEN pay stub${cropped ? ', cropped photo' : ''}">
-    <div class="inner">
-      <div class="row hd"><span>NORTHWIND FABRICATION LLC</span></div>
-      <div class="row"><span class="${hl}${bad}">Employee: Rosa Delgado-Finch</span></div>
-      <div class="row"><span class="${hl}${bad}">Pay period: Oct 16 – Oct 31</span></div>
-      <div class="row"><span class="${hl}">Pay date: Nov 5</span><span>Biweekly</span></div>
-      <div class="row"><span>Hours 80.0</span><span>Rate 19.50</span></div>
-      <div class="row"><span class="${hl}">Gross pay</span><span class="${hl}">1,560.00</span></div>
-      <div class="row"><span>Taxes</span><span>-212.16</span></div>
-      <div class="row"><span>Net pay</span><span>1,347.84</span></div>
-    </div>
-    <div class="wm">SPECIMEN</div>
-  </div>`;
-}
-const checkList = (items) => `<ul class="checks">${items.map(([ok, t]) => `<li><span class="${ok ? 'y' : 'n'}">${ok ? '✓' : '✗'}</span><span>${t}</span></li>`).join('')}</ul>`;
+// ---------- portal pages (inside the phone browser) ----------
+const DOCS = {
+  income: { title: 'Upload proof of income', short: 'proof of income',
+    options: [['Pay stub', 'Your most recent one. Easiest for most people.'], ['Letter from your employer', 'Must show your pay and how often you are paid.'], ['2025 tax return or W-2', 'Only if your pay is about the same this year.'], ["I don't have any of these", 'Your agent will help.']],
+    why: 'The Marketplace compared the income on your application with records from other sources, like the IRS, and they didn\'t match closely enough. It\'s routine.',
+    must: 'your name, your pay, the pay period and the pay date' },
+  ssn: { title: 'Upload a document with your Social Security number', short: 'a Social Security document',
+    options: [['Social Security card', 'Easiest for most people.'], ['W-2 or 1099', 'Must show your full name and number.'], ['Tax return', 'Must show your full name and number.'], ["I don't have any of these", 'Your agent will help.']],
+    why: 'The Marketplace couldn\'t confirm the Social Security number on your application with Social Security\'s records. It\'s routine.',
+    must: 'your full name and your full Social Security number' },
+};
+const stub = () => `<div class="stub" aria-label="SPECIMEN pay stub example">
+  <div class="row hd"><span>NORTHWIND FABRICATION LLC</span></div>
+  <div class="row"><span class="hl">Employee: Jordan Sample</span></div>
+  <div class="row"><span class="hl">Pay period: Oct 16 – Oct 31</span></div>
+  <div class="row"><span class="hl">Pay date: Nov 5</span><span>Biweekly</span></div>
+  <div class="row"><span>Hours 80.0</span><span>Rate 19.50</span></div>
+  <div class="row"><span class="hl">Gross pay</span><span class="hl">1,560.00</span></div>
+  <div class="row"><span>Net pay</span><span>1,347.84</span></div>
+  <div class="wm">SPECIMEN</div></div>`;
+const checkList = items => `<ul class="checks">${items.map(([ok, t]) => `<li><span class="${ok ? 'y' : 'n'}">${ok ? '✓' : '✗'}</span><span>${t}</span></li>`).join('')}</ul>`;
 
-function portalSimple(state, who, due) {
-  const head = `<div><h2>Upload proof of income</h2><span class="due muted">For ${who} · due <b>${due}</b></span></div>`;
-  const drop = `<div class="drop"><span class="big">Take a photo or choose a file</span><span class="cap">JPG, PNG or PDF</span><button>Upload</button></div>`;
+function portal(rich, state, who) {
+  const d = DOCS[who.dmi];
+  const head = `<div class="brand"><i>i</i>Secure upload for Andrew's clients</div>
+    <div><h2>${d.title}</h2><p class="due">For ${who.first} · due <b>${who.due}</b></p></div>`;
+  const drop = label => `<div class="drop"><span class="big">${label}</span><span class="cap">Photo, JPG, PNG or PDF</span><button class="primary">Take a photo</button><button>Choose a file</button></div>`;
+  const why = `<details><summary>Why am I being asked?</summary><p>${d.why} If the Marketplace doesn't get it by ${who.due}, your coverage or premium help could change.</p></details>`;
+  const opts = `<div class="doclist"><span class="label">Choose one document</span>${d.options.map(([t, x], i) => `<div class="docopt${i === 0 ? ' sel' : ''}"><span class="dot"></span><span><b>${t}</b><br><span class="muted">${x}</span></span></div>`).join('')}</div>`;
+  const example = who.dmi === 'income' ? `${stub()}<p class="cap">Example. Your photo must show the highlighted parts: ${d.must}.</p>` : `<p class="cap">Your photo must show ${d.must}.</p>`;
+  const wrap = inner => `<div class="pg">${head}${inner}</div>`;
   switch (state) {
-    case 'idle': return `<div class="portal closed">The Client hasn't opened the link yet.</div>`;
-    case 'open': return `<div class="portal">${head}${drop}</div>`;
-    case 'checking': return `<div class="portal">${head}<div class="status work"><span class="t">Checking your document…</span><span>You'll get a text in a moment.</span></div></div>`;
-    case 'insufficient': return `<div class="portal">${head}<div class="status warn"><span class="t">This one needs a fix</span><span>We texted you what to change.</span></div>${drop}</div>`;
-    case 'submitted': return `<div class="portal">${head}<div class="status info"><span class="t">Sent to the Marketplace</span><span>Nothing else is needed from you.</span></div></div>`;
-    case 'resolved': return `<div class="portal">${head}<div class="status ok"><span class="t">Done</span><span>The Marketplace accepted your document.</span></div></div>`;
-    case 'paused': return `<div class="portal">${head}<div class="status info"><span class="t">Your agent will contact you</span><span>Please don't upload anything yet.</span></div></div>`;
-  }
-}
-
-function portalRich(state, who, due) {
-  const head = `<div><h2>Proof of income for the Marketplace</h2><span class="due muted">For ${who} · due <b>${due}</b></span></div>`;
-  const why = `<details><summary>Why am I being asked?</summary><p>The Marketplace compared the income on your application with records from other sources, like the IRS, and they didn't match closely enough. It's routine. If they don't get proof by ${due}, your help paying premiums could be lowered or stopped.</p></details>`;
-  const opts = (sel) => `<div class="doclist"><span class="label">Choose one document</span>
-    ${[['Pay stub', 'Your most recent one. Easiest for most people.'], ['Letter from your employer', 'Must show your pay and how often you are paid.'], ['2025 tax return or W-2', 'Only if your pay is about the same this year.'], ["I don't have any of these", 'Your agent will help.']]
-      .map(([t, d], i) => `<div class="docopt${sel && i === 0 ? ' sel' : ''}"><span class="dot"></span><span><b>${t}</b><br><span class="muted">${d}</span></span></div>`).join('')}</div>`;
-  const example = `<div class="stubwrap">${stub({ highlight: true })}<div class="cap"><b>What the photo must show</b>, highlighted on this example: your name, the pay period, the pay date, and your pay.</div></div>`;
-  const drop = `<div class="drop"><span class="big">Take a photo or choose a file</span><button>Upload pay stub</button></div>`;
-  switch (state) {
-    case 'idle': return `<div class="portal closed">The Client hasn't opened the link yet.</div>`;
-    case 'open': return `<div class="portal">${head}${why}${opts(false)}${example}${drop}</div>`;
-    case 'checking': return `<div class="portal">${head}<div class="status work"><span class="t">Checking your pay stub…</span><span>This takes a few seconds.</span></div></div>`;
-    case 'insufficient': return `<div class="portal">${head}<div class="status warn"><span class="t">2 things to fix</span>${checkList([[false, 'Your name: the top of the stub is cut off'], [false, 'Pay period: the dates are cut off'], [true, 'Pay date'], [true, 'Your pay']])}</div>
-      <div class="stubwrap">${stub({ cropped: true, marks: true })}<div class="cap"><b>Your photo.</b> Retake it with the whole stub in the frame, flat and in good light.</div></div>${drop}</div>`;
-    case 'submitted': return `<div class="portal">${head}<div class="status info"><span class="t">Sent to the Marketplace</span>${checkList([[true, 'Your name'], [true, 'Pay period'], [true, 'Pay date'], [true, 'Your pay']])}<span>Nothing else is needed from you. We'll text you when they're done.</span></div></div>`;
-    case 'resolved': return `<div class="portal">${head}<div class="status ok"><span class="t">Done</span><span>The Marketplace accepted your pay stub. Your coverage and premium help don't change.</span></div></div>`;
-    case 'paused': return `<div class="portal">${head}<div class="status info"><span class="t">Your agent will contact you</span><span>Because your income changed, Andrew needs to update your application first. Please don't upload anything yet.</span></div></div>`;
+    case 'open': return wrap(rich ? `${why}${opts}${example}${drop('Upload ' + d.options[0][0].toLowerCase())}` : drop('Upload ' + d.short));
+    case 'checking': return wrap(`<div class="status work"><span class="t">Checking your document…</span><span>This takes a few seconds. You'll get a text with the result.</span></div>`);
+    case 'insufficient': return wrap(rich
+      ? `<div class="status warn"><span class="t">2 things to fix</span>${checkList([[false, 'Your name: the top of the stub is cut off'], [false, 'Pay period: the dates are cut off'], [true, 'Pay date'], [true, 'Your pay']])}<span>Retake the photo with the whole stub in the frame, flat and in good light.</span></div>${drop('Upload a new photo')}`
+      : `<div class="status warn"><span class="t">This one needs a fix</span><span>We texted you what to change.</span></div>${drop('Upload a new photo')}`);
+    case 'submitted': return wrap(`<div class="status info"><span class="t">Sent to the Marketplace</span><span>Nothing else is needed from you. We'll text you when they're done.</span></div>`);
+    case 'resolved': return wrap(`<div class="status ok"><span class="t">Done</span><span>The Marketplace accepted your document.</span></div>`);
+    case 'paused': return wrap(`<div class="status info"><span class="t">Your agent will contact you</span><span>Andrew needs to talk with you first. Please don't upload anything yet.</span></div>`);
+    case 'expired': return wrap(`<div class="status crit"><span class="t">This link has expired</span><span>For your security, links work for 3 days. Reply to our text and we'll send you a new one.</span></div><p class="fineprint">Nothing was uploaded with this link.</p>`);
+    default: return wrap(`<p class="muted">No upload needed right now.</p>`);
   }
 }
 
 // ---------- state + render ----------
-let variant = 'a', scene = 'happy', step = 0;
+let variant = 'a', scene = 'happy', step = 0, manualView = null;
 const $ = id => document.getElementById(id);
 const esc = s => s.replace(/[&<>]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch]));
-const linkify = s => esc(s).replaceAll(LINK, '<span class="lnk">portal.example/r/7Q2K</span>');
 const DMI = { open: ['Open', 'warn'], submitted: ['Submitted', 'info'], resolved: ['Resolved', 'ok'], escalated: ['Escalated to Agent', 'crit'] };
 
 function render(animateLast) {
-  const v = VARIANTS[variant], steps = SCRIPTS[variant][scene];
-  const who = scene === 'happy' ? 'Rosa Delgado-Finch' : 'Marcus Whitlow', due = scene === 'happy' ? ROSA_DUE : MARCUS_DUE, left = scene === 'happy' ? 10 : 23;
+  const v = VARIANTS[variant], steps = SCRIPTS[variant][scene], who = PEOPLE[scene];
   $('vtitle').textContent = `${v.key}: ${v.name}`;
   $('vdesc').textContent = v.desc;
   $('vlabel').textContent = `${v.key} (${v.name})`;
-  $('phwho').textContent = 'Andrew · AI assistant';
-  $('scene-happy').setAttribute('aria-pressed', scene === 'happy');
-  $('scene-change').setAttribute('aria-pressed', scene === 'change');
+  ['happy', 'change', 'secure'].forEach(k => $('scene-' + k).setAttribute('aria-pressed', scene === k));
   $('stepcount').textContent = `Step ${step} of ${steps.length}`;
   $('next').disabled = $('all').disabled = step >= steps.length;
 
-  let html = '', p = 'idle', dmi = 'open', agent = null, watch = null; const log = [];
+  let html = '', p = null, dmi = 'open', agent = null, watch = null, view = 'msgs', tok = '7Q2K'; const log = [];
   steps.slice(0, step).forEach((s, i) => {
     const cls = i === step - 1 && animateLast ? ' new' : '';
-    if (s.a) html += `<div class="msg asst${cls}">${linkify(s.a)}</div>`;
-    if (s.c) html += `<div class="msg client${cls}">${esc(s.c)}</div>`;
-    if (s.s) html += `<div class="sys">${esc(s.s)}</div>`;
+    if (s.tok) tok = s.tok;
+    const lnk = `<span class="lnk" role="button" tabindex="0" data-open>portal.example/r/${tok}</span>`;
+    if (s.a) { html += `<div class="msg asst${cls}">${esc(s.a).replaceAll(LINK, lnk)}</div>`; view = 'msgs' }
+    if (s.c) { html += `<div class="msg client${cls}">${esc(s.c)}</div>`; if (s.masked) html += `<div class="masknote">Stored masked · full number never kept</div>`; view = 'msgs' }
+    if (s.s) { html += `<div class="sys">${esc(s.s)}</div>`; view = s.web ? 'web' : 'msgs' }
     if (s.p) p = s.p; if (s.dmi) dmi = s.dmi; if (s.agent) agent = s.agent; if (s.watch) watch = s.watch;
     if (s.log) log.unshift(s.log);
   });
-  if (!step) html = `<div class="sys">Press "Next step" to start the conversation.</div>`;
+  if (!step) { html = `<div class="sys">Press "Next step" to start the conversation.</div>`; watch = 'Step through the scene. Links in the texts open the upload page inside the phone.' }
+  if (manualView) view = manualView;
+
   $('msgs').innerHTML = html;
   $('msgs').scrollTop = $('msgs').scrollHeight;
+  $('tok').textContent = tok;
+  const webWas = !$('v-web').hidden;
+  $('v-msgs').hidden = view !== 'msgs';
+  $('v-web').hidden = view !== 'web';
+  $('v-web').classList.toggle('slide', view === 'web' && !webWas);
+  if (view === 'web') { $('portal').innerHTML = portal(variant === 'b', p || 'open', who); $('portal').scrollTop = 0 }
 
-  $('portal').innerHTML = (variant === 'b' ? portalRich : portalSimple)(p, who, due);
-
-  $('dmitype').innerHTML = `<b>Income</b> · ${who}`;
+  $('dmitype').innerHTML = `<b>${who.dmi === 'ssn' ? 'SSN' : 'Income'}</b> · ${who.full}`;
   const [dl, dc] = DMI[dmi];
   $('dmistatus').innerHTML = `<span class="chip ${dc}">${dl}</span>`;
-  $('dmidue').textContent = `due ${due} · ${left} days left`;
-  $('agentbox').innerHTML = agent ? `<div class="agentbox ${agent.kind}"><span class="t">Agent view · ${agent.t}</span><span>${esc(agent.d)}</span></div>` : '';
-  $('log').innerHTML = log.length ? log.map(([t, d, k]) => `<li class="${k || ''}"><span class="tool">${t}</span><span>${esc(d)}</span><span class="cr">${t.startsWith('(') ? '' : 'check_consent ✓ CR-' + (scene === 'happy' ? '1041' : '1007')}</span></li>`).join('') : '<li><span class="muted">Nothing yet.</span></li>';
+  $('dmidue').textContent = `due ${who.due} · ${who.left} days left`;
   $('watch').innerHTML = watch ? `<span class="label">What to judge here</span><span>${esc(watch)}</span>` : '';
+  $('watch').hidden = !watch;
+  $('agentbox').innerHTML = agent ? `<div class="agentbox ${agent.kind}"><span class="t">Agent view · ${agent.t}</span><span>${esc(agent.d)}</span></div>` : '';
+  $('log').innerHTML = log.length ? log.map(([t, d, k]) => `<li class="${k || ''}"><span class="tool">${t}</span><span>${esc(d)}</span><span class="cr">${t.startsWith('(') ? 'Tool layer, no model call' : 'check_consent ✓ ' + who.cr}</span></li>`).join('') : '<li><span class="muted">Nothing yet.</span></li>';
 }
 
-function setVariant(v) { variant = v; step = 0; try { history.replaceState(null, '', '#variant-' + v) } catch (e) { location.hash = 'variant-' + v } render(false) }
+function go(fn) { manualView = null; fn(); }
+function setVariant(v) { variant = v; step = 0; manualView = null; try { history.replaceState(null, '', '#variant-' + v) } catch (e) { location.hash = 'variant-' + v } render(false) }
 function cycle(d) { setVariant(ORDER[(ORDER.indexOf(variant) + d + ORDER.length) % ORDER.length]) }
 $('prev').onclick = () => cycle(-1);
 $('nextv').onclick = () => cycle(1);
-$('next').onclick = () => { step++; render(true) };
-$('all').onclick = () => { step = SCRIPTS[variant][scene].length; render(false) };
-$('restart').onclick = () => { step = 0; render(false) };
-$('scene-happy').onclick = () => { scene = 'happy'; step = 0; render(false) };
-$('scene-change').onclick = () => { scene = 'change'; step = 0; render(false) };
+$('next').onclick = () => go(() => { step++; render(true) });
+$('all').onclick = () => go(() => { step = SCRIPTS[variant][scene].length; render(false) });
+$('restart').onclick = () => go(() => { step = 0; render(false) });
+['happy', 'change', 'secure'].forEach(k => $('scene-' + k).onclick = () => go(() => { scene = k; step = 0; render(false) }));
+$('done').onclick = () => { manualView = 'msgs'; render(false) };
+$('msgs').addEventListener('click', e => { if (e.target.closest('[data-open]')) { manualView = 'web'; render(false) } });
+$('msgs').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-open]')) { e.preventDefault(); manualView = 'web'; render(false) } });
 document.addEventListener('keydown', e => {
   if (e.target.closest('input, textarea, [contenteditable]')) return;
   if (e.key === 'ArrowLeft') cycle(-1);
   if (e.key === 'ArrowRight') cycle(1);
   if (e.key === 'n' || e.key === 'N') $('next').click();
 });
-function fromHash() { const m = location.hash.match(/^#variant-([abc])$/); variant = m ? m[1] : 'a'; step = 0; render(false) }
+function fromHash() { const m = location.hash.match(/^#variant-([abc])$/); variant = m ? m[1] : 'a'; step = 0; manualView = null; render(false) }
 window.addEventListener('hashchange', fromHash);
 fromHash();
 </script>
