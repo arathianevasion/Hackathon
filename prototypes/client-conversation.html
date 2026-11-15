@@ -4,7 +4,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lato:wght@400;700;900&display=swap">
 <style>
 /* PROTOTYPE (throwaway) for ticket #7 "Client conversation experience (Q&A and guidance)".
-   Three conversation designs, switchable via #variant-a / #variant-b / #variant-c and the floating bar.
+   Four conversation designs, switchable via #variant-a / -b / -c / -d and the floating bar. D is the hybrid the user asked for: B plus "come back later"
+   (the Client can leave the upload page, text "ready" for a fresh link, and the Assistant nudges on the Autonomy cadence if it hears nothing).
    The Client lives on their phone: tapping the Portal link opens the upload page in the phone's browser, and "Done" returns to Messages.
    Three scenes per variant: happy path (Rosa, income DMI), income changed (Marcus), security moments (Ada, SSN DMI: texted SSN, expired link).
    Synthetic data only. Styled with the Integrity design system (light only).
@@ -118,6 +119,7 @@ details p { margin-top: 6px; font-size: 13px }
 .stub .hl { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 2px }
 .cap { font-size: 12px; color: var(--muted) }
 .fineprint { font-size: 11px; color: var(--muted) }
+.pg > button.later { width: 100%; background: transparent; border-color: var(--line-strong) }
 
 /* ---------- behind the scenes ---------- */
 .side { background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-card); border: 1px solid var(--line); min-width: 0 }
@@ -215,8 +217,10 @@ const VARIANTS = {
        desc: 'Texts stay to a line or two. The upload page explains why, lets the Client pick a document, and shows a SPECIMEN with the required parts highlighted. After a bad upload it lists the fixes, but never shows the Client\'s photo back (Security and risk, #11).' },
   c: { key: 'C', name: 'Guided by questions',
        desc: 'The Assistant asks one short question and recommends the single best document, with a checklist of what the photo must show. After a bad upload it repeats the checklist with ✓ and ✗. The upload page stays plain.' },
+  d: { key: 'D', name: 'Hybrid: B + come back later',
+       desc: 'B\'s short texts and helpful upload page, plus a way out. The page offers "I\'ll come back later" before or after a bad upload. The Assistant confirms by text, the Client texts "ready" for a fresh link, and if nothing comes back the Assistant nudges on the Autonomy cadence (day 3, or the next day with 14 or fewer days left), then hands to the Agent.' },
 };
-const ORDER = ['a', 'b', 'c'];
+const ORDER = ['a', 'b', 'c', 'd'];
 
 // Step fields: a = Assistant text, c = Client text, s = narration, web = true opens the phone browser,
 // p = portal state, dmi = DMI status, log = [tool, detail, kind], agent = Agent view item, watch = what to judge, tok = new link token
@@ -346,6 +350,53 @@ const SCRIPTS = {
       { a: "✓ Both look good. I sent it to the Marketplace today and I'll text you when they finish reviewing it.", p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Social Security card submitted'], agent: NOTE_SUBMITTED(ADA.full) },
     ],
   },
+  d: {
+    happy: [
+      { a: `Hi Rosa, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs proof of your income by ${ROSA.due}. Everything you need is here: ${LINK}\nReply with any questions. Reply STOP to opt out.`, log: send('Initial text with Portal link'), dmi: 'open', p: 'open',
+        watch: 'Same short first text as B.' },
+      { s: 'Rosa taps the link', web: true, p: 'open', watch: 'B\'s helpful page, plus a way out at the bottom: "I\'ll come back later".' },
+      { s: 'Rosa picks "Pay stub" and takes a photo', web: true, p: 'checking', log: ['precheck_document', 'Running checks on photo'] },
+      { s: 'The page lists what to fix', web: true, p: 'insufficient', log: ['precheck_document', 'Insufficient: name and pay period missing'],
+        watch: 'The document wasn\'t accepted, and Rosa\'s full stub is at work. She can leave instead of forcing a bad retake.' },
+      { s: 'Rosa taps "I\'ll come back later"', web: true, p: 'later', log: ['(scheduled)', 'Nudge tomorrow if no reply (10 days left)'],
+        watch: 'Once she leaves, this link is spent (single-use). Coming back always means a fresh link, so the page says how to get one.' },
+      { a: 'No problem, Rosa. When you have the whole pay stub, just text me "ready" and I\'ll send a new link. If I don\'t hear from you, I\'ll check in tomorrow.', log: send('Confirmed "come back later"'),
+        watch: 'The Assistant says when it will follow up. With 14 or fewer days left, the Autonomy cadence nudges after 1 day and escalates after 2.' },
+      { s: 'That evening, Rosa is home with her pay stub' },
+      { c: 'ready' },
+      { a: `Great. Here's a new link, good for 3 days: ${LINK}`, tok: '4HTR', p: 'open', log: ['create_portal_link', 'New Portal link (1 of 3 allowed today); nudge cancelled'],
+        watch: 'Any reply that says she has it gets a fresh link and cancels the scheduled nudge.' },
+      { s: 'Rosa taps the new link and retakes the photo', web: true, p: 'checking', log: ['precheck_document', 'Running checks on second photo'] },
+      { s: 'The page confirms it was sent', web: true, p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Pay stub submitted'], agent: NOTE_SUBMITTED(ROSA.full) },
+      { a: "Got it. I sent your pay stub to the Marketplace. I'll text you when they're done.", log: send('Confirmed submission') },
+      { s: 'Fast-forward: the mocked Marketplace finishes its review', p: 'resolved', dmi: 'resolved', log: ['get_dmi_status', 'Marketplace marked resolved'] },
+      { a: "All set. The Marketplace accepted your document. Your coverage and premium help don't change.", log: send('Told Rosa the DMI is resolved'), agent: NOTE_RESOLVED(ROSA.full) },
+    ],
+    change: [
+      { a: `Hi Marcus, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs proof of your income by ${MARCUS.due}. Everything you need is here: ${LINK}\nReply with any questions. Reply STOP to opt out.`, log: send('Initial text with Portal link'), dmi: 'open', p: 'open' },
+      { s: 'Marcus taps the link and reads the page', web: true, p: 'open' },
+      { c: 'I switched jobs last month, so my pay is lower now. Does that matter?' },
+      { a: "It might. Andrew, your licensed agent, needs to update your application, so I've passed this to him and he'll contact you. Please don't upload anything yet.", p: 'paused', dmi: 'escalated', log: ['escalate_to_agent', 'Income change reported', 'esc'], agent: ESC_INCOME,
+        watch: 'Same as B. While the Escalation is open, the Assistant sends no nudges.' },
+      { s: 'Marcus goes back to the page', web: true, watch: 'The page switches to "your agent will contact you" so it doesn\'t keep asking for an upload.' },
+    ],
+    secure: [
+      { a: `Hi Ada, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs a document showing your Social Security number by ${ADA.due}. Everything you need is here: ${LINK}\nReply with any questions. Reply STOP to opt out.`, log: send('Initial text with Portal link'), dmi: 'open', p: 'open' },
+      { c: MASKED, masked: true, log: ['(guardrail)', 'SSN in Client text masked before storage', 'guard'],
+        watch: 'The full number is masked before it is stored or sent to the model.' },
+      { a: "Please don't send your Social Security number by text. The Marketplace needs a document, and the link shows which ones work.", log: send('Asked Ada to use the Portal link, not text') },
+      { c: "Ok. My card is in a box somewhere, I'll look this weekend" },
+      { a: `No rush. When you find it, text me "ready" and I'll send a fresh link. If I haven't heard from you, I'll check in on ${inDays(3)}.`, log: ['(scheduled)', 'Nudge on day 3 if no reply (26 days left)'],
+        watch: 'Ada never opened the page. Saying "later" by text gets the same promise as the page\'s button.' },
+      { s: 'Fast-forward 3 days. No reply from Ada, and the first link has expired' },
+      { a: `Hi Ada, just checking in. Did you find your Social Security card? Here's a fresh link, good for 3 days: ${LINK}\nIf you can't find it, reply and I'll tell you what else works.`, tok: '9MX4', p: 'open', log: ['create_portal_link', 'Day 3 nudge with a fresh Portal link'],
+        watch: 'The nudge carries a new link, so Ada never lands on an expired page. If she still doesn\'t reply by day 7, the Assistant stops and Andrew gets an Escalation.' },
+      { s: 'Ada taps the link and picks "Social Security card"', web: true, p: 'open' },
+      { s: 'Ada photographs her card', web: true, p: 'checking', log: ['precheck_document', 'Running checks on photo'] },
+      { s: 'The page confirms it was sent', web: true, p: 'submitted', dmi: 'submitted', log: ['submit_documents', 'Social Security card submitted'], agent: NOTE_SUBMITTED(ADA.full) },
+      { a: "Thanks, Ada. I sent it to the Marketplace and I'll text you when they're done.", log: send('Confirmed submission') },
+    ],
+  },
 };
 
 // ---------- portal pages (inside the phone browser) ----------
@@ -370,7 +421,7 @@ const stub = () => `<div class="stub" aria-label="SPECIMEN pay stub example">
   <div class="wm">SPECIMEN</div></div>`;
 const checkList = items => `<ul class="checks">${items.map(([ok, t]) => `<li><span class="${ok ? 'y' : 'n'}">${ok ? '✓' : '✗'}</span><span>${t}</span></li>`).join('')}</ul>`;
 
-function portal(rich, state, who) {
+function portal(rich, state, who, later) {
   const d = DOCS[who.dmi];
   const head = `<div class="brand"><i>i</i>Secure upload for Andrew's clients</div>
     <div><h2>${d.title}</h2><p class="due">For ${who.first} · due <b>${who.due}</b></p></div>`;
@@ -378,16 +429,18 @@ function portal(rich, state, who) {
   const why = `<details><summary>Why am I being asked?</summary><p>${d.why} If the Marketplace doesn't get it by ${who.due}, your coverage or premium help could change.</p></details>`;
   const opts = `<div class="doclist"><span class="label">Choose one document</span>${d.options.map(([t, x], i) => `<div class="docopt${i === 0 ? ' sel' : ''}"><span class="dot"></span><span><b>${t}</b><br><span class="muted">${x}</span></span></div>`).join('')}</div>`;
   const example = who.dmi === 'income' ? `${stub()}<p class="cap">Example. Your photo must show the highlighted parts: ${d.must}.</p>` : `<p class="cap">Your photo must show ${d.must}.</p>`;
+  const out = later ? `<button class="later">I'll come back later</button>` : '';
   const wrap = inner => `<div class="pg">${head}${inner}</div>`;
   switch (state) {
-    case 'open': return wrap(rich ? `${why}${opts}${example}${drop('Upload ' + d.options[0][0].toLowerCase())}` : drop('Upload ' + d.short));
+    case 'open': return wrap(rich ? `${why}${opts}${example}${drop('Upload ' + d.options[0][0].toLowerCase())}${out}` : drop('Upload ' + d.short));
     case 'checking': return wrap(`<div class="status work"><span class="t">Checking your document…</span><span>This takes a few seconds. You'll get a text with the result.</span></div>`);
     case 'insufficient': return wrap(rich
-      ? `<div class="status warn"><span class="t">2 things to fix</span>${checkList([[false, 'Your name: the top of the stub is cut off'], [false, 'Pay period: the dates are cut off'], [true, 'Pay date'], [true, 'Your pay']])}<span>Retake the photo with the whole stub in the frame, flat and in good light.</span></div>${drop('Upload a new photo')}`
+      ? `<div class="status warn"><span class="t">2 things to fix</span>${checkList([[false, 'Your name: the top of the stub is cut off'], [false, 'Pay period: the dates are cut off'], [true, 'Pay date'], [true, 'Your pay']])}<span>Retake the photo with the whole stub in the frame, flat and in good light.</span></div>${drop('Upload a new photo')}${out}`
       : `<div class="status warn"><span class="t">This one needs a fix</span><span>We texted you what to change.</span></div>${drop('Upload a new photo')}`);
     case 'submitted': return wrap(`<div class="status info"><span class="t">Sent to the Marketplace</span><span>Nothing else is needed from you. We'll text you when they're done.</span></div>`);
     case 'resolved': return wrap(`<div class="status ok"><span class="t">Done</span><span>The Marketplace accepted your document.</span></div>`);
     case 'paused': return wrap(`<div class="status info"><span class="t">Your agent will contact you</span><span>Andrew needs to talk with you first. Please don't upload anything yet.</span></div>`);
+    case 'later': return wrap(`<div class="status info"><span class="t">No problem. Come back any time before ${who.due}</span><span>When you have it, reply "ready" to our text and we'll send you a new link. If we don't hear from you, we'll check in.</span></div><p class="fineprint">For your security, this link is now closed. Nothing was sent to the Marketplace.</p>`);
     case 'expired': return wrap(`<div class="status crit"><span class="t">This link has expired</span><span>For your security, links work for 3 days. Reply to our text and we'll send you a new one.</span></div><p class="fineprint">Nothing was uploaded with this link.</p>`);
     default: return wrap(`<p class="muted">No upload needed right now.</p>`);
   }
@@ -429,7 +482,7 @@ function render(animateLast) {
   $('v-msgs').hidden = view !== 'msgs';
   $('v-web').hidden = view !== 'web';
   $('v-web').classList.toggle('slide', view === 'web' && !webWas);
-  if (view === 'web') { $('portal').innerHTML = portal(variant === 'b', p || 'open', who); $('portal').scrollTop = 0 }
+  if (view === 'web') { $('portal').innerHTML = portal(variant === 'b' || variant === 'd', p || 'open', who, variant === 'd'); $('portal').scrollTop = 0 }
 
   $('dmitype').innerHTML = `<b>${who.dmi === 'ssn' ? 'SSN' : 'Income'}</b> · ${who.full}`;
   const [dl, dc] = DMI[dmi];
@@ -459,7 +512,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') cycle(1);
   if (e.key === 'n' || e.key === 'N') $('next').click();
 });
-function fromHash() { const m = location.hash.match(/^#variant-([abc])$/); variant = m ? m[1] : 'a'; step = 0; manualView = null; render(false) }
+function fromHash() { const m = location.hash.match(/^#variant-([abcd])$/); variant = m ? m[1] : 'a'; step = 0; manualView = null; render(false) }
 window.addEventListener('hashchange', fromHash);
 fromHash();
 </script>
