@@ -109,4 +109,56 @@ describe("Assistant tools", () => {
       expect(store.list("portalLinks")).toEqual([]);
     });
   });
+
+  describe("send_text", () => {
+    const thread = (clientId: string) => store.list("messages").filter((m) => m.clientId === clientId);
+
+    it("sends a text in the Thread as the Assistant, and logs it with the Consent record", async () => {
+      const link = await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
+      const text = `Everything you need is here: ${link.url}\nReply STOP to opt out.`;
+      const result = await tools.send_text({ clientId: ROSA, text });
+      expect(result).toMatchObject({ sent: true });
+      expect(thread(ROSA)).toEqual([
+        { id: result.sent ? result.messageId : "", clientId: ROSA, sender: "assistant", sentAt: NOW.toISOString(), text },
+      ]);
+      expect(newLogEntries().slice(-2)).toMatchObject([
+        { tool: "check_consent", consentRecordId: "CR-1041", result: "Allowed: text_outreach" },
+        { tool: "send_text", consentRecordId: "CR-1041", result: "Text sent" },
+      ]);
+    });
+
+    it("refuses without consent", async () => {
+      store.update("consentRecords", { ...consentOf(ROSA), rescindedAt: "2026-11-10T12:00:00.000Z" });
+      expect(await tools.send_text({ clientId: ROSA, text: "Hi Rosa" })).toEqual({ sent: false, reason: "no_consent" });
+      expect(thread(ROSA)).toEqual([]);
+      expect(newLogEntries()).toMatchObject([
+        { tool: "check_consent", result: "Refused: rescinded" },
+        { tool: "send_text", consentRecordId: null, result: "Refused: no_consent (rescinded)" },
+      ]);
+    });
+
+    it("refuses after the Client opted out", async () => {
+      expect(await tools.send_text({ clientId: JUNE, text: "Hi June" })).toEqual({ sent: false, reason: "opted_out" });
+      expect(thread(JUNE)).toEqual([]);
+      expect(newLogEntries()).toMatchObject([{ tool: "send_text", consentRecordId: null, result: "Refused: opted_out" }]);
+    });
+
+    it("refuses a text the outbound filter blocks, and logs why without the text", async () => {
+      expect(await tools.send_text({ clientId: ROSA, text: "Is your SSN 123-45-6789?" })).toEqual({
+        sent: false,
+        reason: "outbound_filter",
+      });
+      expect(thread(ROSA)).toEqual([]);
+      const [, entry] = newLogEntries();
+      expect(entry).toMatchObject({ tool: "send_text", consentRecordId: "CR-1041", result: "Blocked by outbound filter: ssn_like_number" });
+    });
+
+    it("lets out only Portal links issued to this Client", async () => {
+      const marcusLink = await tools.create_portal_link({ clientId: "client-02", dmiId: "dmi-02" });
+      expect(await tools.send_text({ clientId: ROSA, text: `Upload here: ${marcusLink.url}` })).toEqual({
+        sent: false,
+        reason: "outbound_filter",
+      });
+    });
+  });
 });

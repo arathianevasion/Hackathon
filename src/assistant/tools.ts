@@ -1,6 +1,7 @@
 import type { AssistantTools, ClientId, ConsentCheck, ConsentRecordId, ToolName } from "../contract";
 import { issuePortalLink, PORTAL_LINK_TTL_HOURS } from "../portal/portalLink";
 import type { Store } from "../store/store";
+import { screenOutbound } from "./outboundFilter";
 
 /** The tools built so far; the rest of `AssistantTools` arrives with later tickets. */
 export type Tools = Pick<AssistantTools, "check_consent" | "send_text" | "create_portal_link">;
@@ -39,8 +40,28 @@ export function createTools({ store, now }: ToolDeps): Tools {
 
   return {
     check_consent,
-    send_text: async () => {
-      throw new Error("not built yet");
+    async send_text({ clientId, text }) {
+      const client = store.list("clients").find((c) => c.id === clientId);
+      if (!client) throw new Error(`No Client ${clientId}`);
+      if (client.optedOutAt !== null) {
+        log(clientId, "send_text", null, "Refused: opted_out");
+        return { sent: false, reason: "opted_out" };
+      }
+      const consent = await check_consent({ clientId, action: "text_outreach" });
+      if (!consent.allowed) {
+        log(clientId, "send_text", null, `Refused: no_consent (${consent.reason})`);
+        return { sent: false, reason: "no_consent" };
+      }
+      const issuedLinks = store.list("portalLinks").filter((l) => l.clientId === clientId).map((l) => l.url);
+      const screening = screenOutbound(text, issuedLinks);
+      if (!screening.ok) {
+        log(clientId, "send_text", consent.consentRecordId, `Blocked by outbound filter: ${screening.blocked.join(", ")}`);
+        return { sent: false, reason: "outbound_filter" };
+      }
+      const messageId = `msg-${store.list("messages").length + 1}`;
+      store.add("messages", { id: messageId, clientId, sender: "assistant", sentAt: now().toISOString(), text });
+      log(clientId, "send_text", consent.consentRecordId, "Text sent");
+      return { sent: true, messageId };
     },
     async create_portal_link({ clientId, dmiId }) {
       const dmi = store.list("dmis").find((d) => d.id === dmiId && d.clientId === clientId);
