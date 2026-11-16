@@ -1,7 +1,11 @@
 import type { AssistantTools, ClientId, ConsentCheck, ConsentRecordId, ToolName } from "../contract";
 import { issuePortalLink, PORTAL_LINK_TTL_HOURS } from "../portal/portalLink";
 import type { Store } from "../store/store";
+import { disclosure } from "./replies";
 import { screenOutbound } from "./outboundFilter";
+
+/** The opt-out line every first text carries. */
+const OPT_OUT_LINE = "Reply STOP to opt out";
 
 /** The tools built so far; the rest of `AssistantTools` arrives with later tickets. */
 export type Tools = Pick<AssistantTools, "check_consent" | "send_text" | "create_portal_link">;
@@ -51,6 +55,20 @@ export function createTools({ store, now }: ToolDeps): Tools {
       if (!consent.allowed) {
         log(clientId, "send_text", null, `Refused: no_consent (${consent.reason})`);
         return { sent: false, reason: "no_consent" };
+      }
+      const isFirstText = !store.list("messages").some((m) => m.clientId === clientId && m.sender === "assistant");
+      if (isFirstText) {
+        const agent = store.list("agents").find((a) => a.id === client.agentId);
+        if (!agent) throw new Error(`No Agent ${client.agentId}`);
+        const lacks = !text.toLowerCase().includes(disclosure(agent.firstName).toLowerCase())
+          ? "first text lacks the AI disclosure"
+          : !text.includes(OPT_OUT_LINE)
+            ? `first text lacks "${OPT_OUT_LINE}"`
+            : null;
+        if (lacks) {
+          log(clientId, "send_text", consent.consentRecordId, `Refused: ${lacks}`);
+          return { sent: false, reason: "outbound_filter" };
+        }
       }
       const openLinks = store
         .list("portalLinks")

@@ -6,6 +6,7 @@ import { createTools, type Tools } from "./tools";
 const NOW = new Date("2026-11-16T15:00:00Z");
 const ROSA = "client-01"; // happy path, CR-1041
 const JUNE = "client-07"; // opted out, CR-1030
+const FIRST_TEXT_HEAD = "Hi Rosa, I'm the AI assistant for your insurance agent, Andrew. ";
 
 describe("Assistant tools", () => {
   let store: Store;
@@ -115,7 +116,7 @@ describe("Assistant tools", () => {
 
     it("sends a text in the Thread as the Assistant, and logs it with the Consent record", async () => {
       const link = await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
-      const text = `Everything you need is here: ${link.url}\nReply STOP to opt out.`;
+      const text = `${FIRST_TEXT_HEAD}Everything you need is here: ${link.url}\nReply STOP to opt out.`;
       const result = await tools.send_text({ clientId: ROSA, text });
       expect(result).toMatchObject({ sent: true });
       expect(thread(ROSA)).toEqual([
@@ -146,17 +147,55 @@ describe("Assistant tools", () => {
       ]);
     });
 
+    it("refuses a first text that lacks the AI disclosure, and logs the refusal", async () => {
+      const link = await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
+      const text = `Hi Rosa, everything you need is here: ${link.url}\nReply STOP to opt out.`;
+      expect(await tools.send_text({ clientId: ROSA, text })).toEqual({ sent: false, reason: "outbound_filter" });
+      expect(thread(ROSA)).toEqual([]);
+      expect(newLogEntries().at(-1)).toMatchObject({
+        tool: "send_text",
+        consentRecordId: "CR-1041",
+        result: "Refused: first text lacks the AI disclosure",
+      });
+    });
+
+    it("refuses a first text that lacks \"Reply STOP to opt out\", and logs the refusal", async () => {
+      const link = await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
+      const text = `${FIRST_TEXT_HEAD}Everything you need is here: ${link.url}`;
+      expect(await tools.send_text({ clientId: ROSA, text })).toEqual({ sent: false, reason: "outbound_filter" });
+      expect(thread(ROSA)).toEqual([]);
+      expect(newLogEntries().at(-1)).toMatchObject({
+        tool: "send_text",
+        consentRecordId: "CR-1041",
+        result: "Refused: first text lacks \"Reply STOP to opt out\"",
+      });
+    });
+
+    it("lets the variant D first text through with the link filled in", async () => {
+      const link = await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
+      const text = `Hi Rosa, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs proof of your income by Nov 26. Everything you need is here: ${link.url}\nReply with any questions. Reply STOP to opt out.`;
+      expect(await tools.send_text({ clientId: ROSA, text })).toMatchObject({ sent: true });
+    });
+
+    it("does not hold later texts to the first-text check", async () => {
+      await tools.send_text({ clientId: ROSA, text: `${FIRST_TEXT_HEAD}Reply STOP to opt out.` });
+      expect(await tools.send_text({ clientId: ROSA, text: "Thanks, that works." })).toMatchObject({ sent: true });
+    });
+
     it("refuses a text the outbound filter blocks, and logs why without the text", async () => {
+      await tools.send_text({ clientId: ROSA, text: `${FIRST_TEXT_HEAD}Reply STOP to opt out.` });
+      seededLog = store.list("actionLog").length;
       expect(await tools.send_text({ clientId: ROSA, text: "Is your SSN 123-45-6789?" })).toEqual({
         sent: false,
         reason: "outbound_filter",
       });
-      expect(thread(ROSA)).toEqual([]);
+      expect(thread(ROSA)).toHaveLength(1);
       const [, entry] = newLogEntries();
       expect(entry).toMatchObject({ tool: "send_text", consentRecordId: "CR-1041", result: "Blocked by outbound filter: ssn_like_number" });
     });
 
     it("lets out only Portal links issued to this Client", async () => {
+      await tools.send_text({ clientId: ROSA, text: `${FIRST_TEXT_HEAD}Reply STOP to opt out.` });
       const marcusLink = await tools.create_portal_link({ clientId: "client-02", dmiId: "dmi-02" });
       expect(await tools.send_text({ clientId: ROSA, text: `Upload here: ${marcusLink.url}` })).toEqual({
         sent: false,
@@ -165,6 +204,7 @@ describe("Assistant tools", () => {
     });
 
     it("does not let out a Portal link that was already used or has expired", async () => {
+      await tools.send_text({ clientId: ROSA, text: `${FIRST_TEXT_HEAD}Reply STOP to opt out.` });
       const used = await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
       redeemPortalLink(store, used.url, NOW);
       expect(await tools.send_text({ clientId: ROSA, text: `Upload here: ${used.url}` })).toEqual({ sent: false, reason: "outbound_filter" });
