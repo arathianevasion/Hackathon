@@ -1,7 +1,11 @@
 import type { AssistantTools, ClientId, ConsentCheck, ConsentRecordId, ToolName } from "../contract";
 import { issuePortalLink, PORTAL_LINK_TTL_HOURS } from "../portal/portalLink";
 import type { Store } from "../store/store";
+import { disclosure } from "./replies";
 import { screenOutbound } from "./outboundFilter";
+
+/** The opt-out line every first text carries. */
+const OPT_OUT_LINE = "Reply STOP to opt out";
 
 /** The tools built so far; the rest of `AssistantTools` arrives with later tickets. */
 export type Tools = Pick<AssistantTools, "check_consent" | "send_text" | "create_portal_link">;
@@ -52,6 +56,22 @@ export function createTools({ store, now }: ToolDeps): Tools {
         log(clientId, "send_text", null, `Refused: no_consent (${consent.reason})`);
         return { sent: false, reason: "no_consent" };
       }
+      // A reply to a Client's text is not a first text: only an empty Thread makes it one.
+      const isFirstText = !store.list("messages").some((m) => m.clientId === clientId);
+      if (isFirstText) {
+        const agent = store.agent();
+        if (!agent) throw new Error("No Agent");
+        const seen = normalize(text);
+        const lacks = !seen.includes(normalize(disclosure(agent.firstName)))
+          ? "first text lacks the AI disclosure"
+          : !seen.includes(normalize(OPT_OUT_LINE))
+            ? `first text lacks "${OPT_OUT_LINE}"`
+            : null;
+        if (lacks) {
+          log(clientId, "send_text", consent.consentRecordId, `Refused: ${lacks}`);
+          return { sent: false, reason: "outbound_filter" };
+        }
+      }
       const openLinks = store
         .list("portalLinks")
         .filter((l) => l.clientId === clientId && l.usedAt === null && Date.parse(l.expiresAt) > now().getTime())
@@ -79,6 +99,11 @@ export function createTools({ store, now }: ToolDeps): Tools {
       return { url, dmiId, expiresAt };
     },
   };
+}
+
+/** Lower-case with curly apostrophes made straight, so typography doesn't fail the required phrases. */
+function normalize(text: string): string {
+  return text.replace(/[\u2018\u2019]/g, "'").toLowerCase();
 }
 
 function consentFor(store: Store, clientId: ClientId, action: Parameters<Tools["check_consent"]>[0]["action"], at: Date): ConsentCheck {
