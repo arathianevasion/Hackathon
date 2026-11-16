@@ -24,6 +24,11 @@ describe("receiveClientText", () => {
     ["my number is 123-45-6789", "my number is •••-••-6789"],
     ["123 45 6789 is it", "•••-••-6789 is it"],
     ["ssn:987654321.", "ssn:•••-••-4321."],
+    ["ssn-123-45-6789", "ssn-•••-••-6789"],
+    ["123-45-6789-", "•••-••-6789-"],
+    ["123.45.6789", "•••-••-6789"],
+    ["123 - 45 - 6789", "•••-••-6789"],
+    ["my phone is 202-555-0101", "my phone is 202-555-0101"],
   ])("masks an SSN to the last 4 before storage: %s", (typed, masked) => {
     receiveClientText({ store, now: () => NOW }, ROSA, typed);
     const stored = store.list("messages").filter((m) => m.clientId === ROSA);

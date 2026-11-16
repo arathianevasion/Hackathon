@@ -1,8 +1,8 @@
 import type { ClientId, DomainEvent } from "../contract";
 import type { Store } from "../store/store";
 
-/** Nine digits shaped like an SSN: 123-45-6789, 123 45 6789 or 123456789. */
-const SSN_LIKE = /(?<![\d-])\d{3}[- ]?\d{2}[- ]?\d{4}(?![\d-])/g;
+/** Nine digits shaped like an SSN, however separated (dashes, dots, spaces) or surrounded; over-masking beats leaking. */
+const SSN_LIKE = /(?<!\d)\d{3}[-. ]*\d{2}[-. ]*\d{4}(?!\d)/g;
 
 /** An SSN-like number as stored and shown: only the last 4 digits remain. */
 export function maskSsns(text: string): string {
