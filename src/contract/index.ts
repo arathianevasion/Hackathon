@@ -40,7 +40,7 @@ export interface Household {
   id: HouseholdId;
   /** Fictional Marketplace application id. */
   applicationId: string;
-  /** The primary Household member. POC: the Client is the only member modelled. */
+  /** The primary Household member. POC: the Client is the only Household member modelled. */
   clientId: ClientId;
 }
 
@@ -244,6 +244,7 @@ export interface AssistantTools {
     trigger: EscalationTrigger;
     summary: string;
     clientWords: string | null;
+    suggestedNextStep: string | null;
   }): Promise<{ escalationId: EscalationId }>;
 }
 
@@ -266,7 +267,8 @@ export const TOOL_NAMES = [
 
 /** What an Agent did on the Agent view that the Assistant must react to. */
 export type AgentActionKind = "posted_in_thread" | "escalation_handled" | "keep_trying";
-export type CadenceStep = "nudge" | "escalate";
+/** "reminder": once before each Marketplace warning, after the Agent says keep trying. */
+export type CadenceStep = "nudge" | "escalate" | "reminder";
 
 /**
  * Events raised by screens, the mocked Marketplace and the cadence engine.

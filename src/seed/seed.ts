@@ -239,7 +239,7 @@ export function buildSeed(runDate: Date): SeedData {
         });
         log(clientId, r.consent, "precheck_document", "Insufficient: stale tax year", daysAgo(2));
         log(clientId, r.consent, "precheck_document", "Insufficient: no name, not an accepted type", daysAgo(0));
-        log(clientId, r.consent, "escalate_to_agent", "Second insufficient upload", daysAgo(0));
+        log(clientId, r.consent, "escalate_to_agent", "Second insufficient Document", daysAgo(0));
         escalate(
           clientId,
           "insufficient_twice",

@@ -10,7 +10,7 @@ describe("store", () => {
 
   it("starts empty", () => {
     store = openStore(":memory:");
-    expect(store.isEmpty()).toBe(true);
+    expect(store.seededOn()).toBeNull();
     expect(store.list("clients")).toEqual([]);
   });
 
@@ -18,7 +18,6 @@ describe("store", () => {
     store = openStore(":memory:");
     store.reset(RUN_DATE);
     const seed = buildSeed(RUN_DATE);
-    expect(store.isEmpty()).toBe(false);
     expect(store.agent()).toEqual(seed.agent);
     expect(store.list("clients")).toEqual(seed.clients);
     expect(store.list("dmis")).toEqual(seed.dmis);
@@ -28,6 +27,13 @@ describe("store", () => {
     expect(store.list("notifications")).toEqual(seed.notifications);
     expect(store.list("actionLog")).toEqual(seed.actionLog);
     expect(store.list("messages")).toEqual([]);
+  });
+
+  it("records the run date it was seeded on", () => {
+    store = openStore(":memory:");
+    expect(store.seededOn()).toBeNull();
+    store.reset(RUN_DATE);
+    expect(store.seededOn()).toBe("2026-11-16");
   });
 
   it("replaces whatever was there on reset, with dates from the new run date", () => {

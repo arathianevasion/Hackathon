@@ -1,5 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
-import type { Agent } from "../contract";
+import type { Agent, IsoDate } from "../contract";
+import { toIsoDate } from "../dates";
 import { buildSeed, type SeedData } from "../seed/seed";
 
 /** The entity collections the store holds, named as in `SeedData`. */
@@ -21,7 +22,8 @@ const COLLECTIONS: readonly Collection[] = [
 
 /** The demo's SQLite database: the Agent and the entity collections. */
 export interface Store {
-  isEmpty(): boolean;
+  /** The run date of the last reset, or null while the store is empty. */
+  seededOn(): IsoDate | null;
   /** Wipes everything and writes a fresh seed dated from `runDate`. */
   reset(runDate: Date): void;
   agent(): Agent | null;
@@ -37,6 +39,7 @@ export interface Store {
 export function openStore(path: string): Store {
   const db = new DatabaseSync(path);
   db.exec(`CREATE TABLE IF NOT EXISTS agents (seq INTEGER PRIMARY KEY, id TEXT UNIQUE NOT NULL, data TEXT NOT NULL)`);
+  db.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
   for (const c of COLLECTIONS) {
     db.exec(`CREATE TABLE IF NOT EXISTS ${c} (seq INTEGER PRIMARY KEY, id TEXT UNIQUE NOT NULL, data TEXT NOT NULL)`);
   }
@@ -47,7 +50,8 @@ export function openStore(path: string): Store {
     (db.prepare(`SELECT data FROM ${table} ORDER BY seq`).all() as { data: string }[]).map((r) => JSON.parse(r.data));
 
   return {
-    isEmpty: () => read("agents").length === 0,
+    seededOn: () =>
+      (db.prepare(`SELECT value FROM meta WHERE key = 'seeded_on'`).get() as { value: string } | undefined)?.value ?? null,
     reset(runDate) {
       const seed = buildSeed(runDate);
       db.exec("BEGIN");
@@ -58,6 +62,7 @@ export function openStore(path: string): Store {
           db.exec(`DELETE FROM ${c}`);
           for (const row of seed[c]) insert(c, row);
         }
+        db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('seeded_on', ?)`).run(toIsoDate(runDate));
         db.exec("COMMIT");
       } catch (error) {
         db.exec("ROLLBACK");
