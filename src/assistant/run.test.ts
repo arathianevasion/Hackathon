@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ExtractedFields } from "../documents/extract";
+import { issuePortalLink, openUploadSession } from "../portal/portalLink";
+import { receiveUpload } from "../portal/upload";
 import { openStore, type Store } from "../store/store";
 import { receiveClientText } from "./inbound";
 import { runAssistant, type ModelClient, type RunnerParams } from "./run";
@@ -13,6 +16,7 @@ function scriptedModel() {
   const client: ModelClient = {
     beta: {
       messages: {
+        create: vi.fn(),
         toolRunner: vi.fn((params: RunnerParams) => {
           calls.push(params);
           return (async () => {
@@ -104,6 +108,7 @@ function scriptedReplyModel() {
   const client: ModelClient = {
     beta: {
       messages: {
+        create: vi.fn(),
         toolRunner: vi.fn((params: RunnerParams) => {
           calls.push(params);
           return (async () => {
@@ -212,5 +217,112 @@ describe("runAssistant on client.message", () => {
     const model = scriptedReplyModel();
     await reply(ROSA, "ok thanks", model);
     expect(thread(ROSA).map((m) => m.sender)).toEqual(["client"]);
+  });
+});
+
+const FULL_STUB: ExtractedFields = {
+  documentType: "pay stub",
+  name: "Rosa Delgado-Finch",
+  ssn: null,
+  pay: { amount: 1560, frequency: "biweekly" },
+  annualIncome: null,
+  payPeriodStart: "2026-10-16",
+  payPeriodEnd: "2026-10-31",
+  payDate: "2026-11-05",
+  taxYear: null,
+  employer: "Northwind Fabrication LLC",
+  legible: true,
+  cropped: false,
+};
+
+/** Plays the model for an upload: follows the prompt's steps; `extracted` is what the separate extraction call returns. */
+function scriptedUploadModel(extracted: ExtractedFields) {
+  const calls: RunnerParams[] = [];
+  const extractions: unknown[] = [];
+  const client: ModelClient = {
+    beta: {
+      messages: {
+        create: vi.fn(async (params) => {
+          extractions.push(params);
+          return { content: [{ type: "text", text: JSON.stringify(extracted) }] };
+        }),
+        toolRunner: vi.fn((params: RunnerParams) => {
+          calls.push(params);
+          return (async () => {
+            const tool = (name: string) => params.tools.find((t) => "name" in t && t.name === name) as { run: (input: unknown) => Promise<string> };
+            const prompt = String(params.messages[0].content);
+            const dmiId = /dmi_id: (\S+)/.exec(prompt)![1];
+            const documentId = /document_id: (\S+)/.exec(prompt)![1];
+            const checked = JSON.parse(await tool("precheck_document").run({ documentId })) as { result: string };
+            if (checked.result !== "sufficient") return;
+            const submitted = JSON.parse(await tool("submit_documents").run({ dmiId, documentIds: [documentId] })) as { submitted: boolean };
+            if (!submitted.submitted) return;
+            await tool("check_consent").run({ action: "text_outreach" });
+            await tool("send_text").run({ text: /<confirmation>([\s\S]*?)<\/confirmation>/.exec(prompt)![1] });
+          })();
+        }),
+      },
+    },
+  };
+  return { client, calls, extractions };
+}
+
+describe("runAssistant on document.uploaded", () => {
+  let store: Store;
+  beforeEach(() => {
+    store = openStore(":memory:");
+    store.reset(NOW);
+  });
+  afterEach(() => store.close());
+
+  /** Rosa opens her Portal link and uploads a SPECIMEN pay stub. */
+  const rosaUploads = (model: ReturnType<typeof scriptedUploadModel>) => {
+    const deps = { store, now: () => NOW, model: model.client };
+    const link = issuePortalLink(store, ROSA, "dmi-01", NOW);
+    store.add("messages", { id: "msg-first", clientId: ROSA, sender: "assistant", sentAt: NOW.toISOString(), text: `First text with ${link.url}` });
+    openUploadSession(store, link.url, NOW);
+    const event = receiveUpload(deps, link.url, { choice: "Pay stub", fileName: "stub.png", mediaType: "image/png", bytes: Buffer.from("SPECIMEN") });
+    return runAssistant(event, deps).then(() => event);
+  };
+
+  it("checks a sufficient SPECIMEN pay stub, submits it to the mocked Marketplace, texts the confirmation and notifies the Agent", async () => {
+    const model = scriptedUploadModel(FULL_STUB);
+    const event = await rosaUploads(model);
+    const doc = store.list("documents").find((d) => d.id === event.documentId)!;
+    expect(doc).toMatchObject({ documentType: "pay stub", precheck: { result: "sufficient" }, submission: "submitted" });
+    expect(store.list("dmis").find((d) => d.id === "dmi-01")!.status).toBe("documents_submitted");
+    expect(store.list("messages").filter((m) => m.clientId === ROSA && m.id !== "msg-first").map((m) => m.text)).toEqual([
+      "Got it. I sent your pay stub to the Marketplace. I'll text you when they're done.",
+    ]);
+    expect(store.list("notifications").filter((n) => n.clientId === ROSA).map((n) => n.event)).toEqual(["documents_submitted"]);
+  });
+
+  it("does the extraction in its own call with no tools, and gives the Assistant's run only the tools this step needs", async () => {
+    const model = scriptedUploadModel(FULL_STUB);
+    await rosaUploads(model);
+    expect(model.extractions).toHaveLength(1);
+    expect(model.extractions[0]).not.toHaveProperty("tools");
+    expect(model.calls[0].tools.map((t) => ("name" in t ? t.name : ""))).toEqual(["check_consent", "precheck_document", "submit_documents", "send_text"]);
+    expect(model.calls[0]).toMatchObject({ model: "claude-sonnet-5-5", output_config: { effort: "low" } });
+  });
+
+  it("submits nothing and texts nothing for an insufficient upload", async () => {
+    const model = scriptedUploadModel({ ...FULL_STUB, cropped: true, name: null });
+    await rosaUploads(model);
+    expect(store.list("dmis").find((d) => d.id === "dmi-01")!.status).toBe("open");
+    expect(store.list("messages").filter((m) => m.clientId === ROSA && m.id !== "msg-first")).toEqual([]);
+  });
+
+  it("refuses submit_documents even when the model calls it on an insufficient result", async () => {
+    const model = scriptedUploadModel({ ...FULL_STUB, cropped: true });
+    model.client.beta.messages.toolRunner = vi.fn(async (params: RunnerParams) => {
+      const tool = (name: string) => params.tools.find((t) => "name" in t && t.name === name) as { run: (input: unknown) => Promise<string> };
+      const documentId = /document_id: (\S+)/.exec(String(params.messages[0].content))![1];
+      await tool("precheck_document").run({ documentId });
+      return tool("submit_documents").run({ dmiId: "dmi-01", documentIds: [documentId] });
+    });
+    await rosaUploads(model);
+    expect(store.list("dmis").find((d) => d.id === "dmi-01")!.status).toBe("open");
+    expect(store.list("actionLog").at(-1)).toMatchObject({ tool: "submit_documents", result: expect.stringMatching(/^Refused: .* is not sufficient$/) });
   });
 });

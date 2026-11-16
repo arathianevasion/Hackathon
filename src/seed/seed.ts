@@ -17,6 +17,7 @@ import type {
   ToolName,
 } from "../contract";
 import { addDays, toIsoDate } from "../dates";
+import type { StoredDocumentFile } from "../documents/files";
 import type { IssuedPortalLink } from "../portal/portalLink";
 
 /** The scenario groups of the synthetic data set (ticket #5's roster). */
@@ -58,6 +59,8 @@ export interface SeedData {
   actionLog: ActionLogEntry[];
   /** Portal links issued so far; the seed starts with none. */
   portalLinks: IssuedPortalLink[];
+  /** Uploaded files, by Document id; seeded Documents have none. */
+  documentFiles: StoredDocumentFile[];
   scenarioOf: Record<ClientId, ScenarioGroup>;
 }
 
@@ -125,6 +128,7 @@ export function buildSeed(runDate: Date): SeedData {
     notifications: [],
     actionLog: [],
     portalLinks: [],
+    documentFiles: [],
     scenarioOf: {},
   };
 
