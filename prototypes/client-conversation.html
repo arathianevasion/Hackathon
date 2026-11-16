@@ -218,7 +218,7 @@ const VARIANTS = {
   c: { key: 'C', name: 'Guided by questions',
        desc: 'The Assistant asks one short question and recommends the single best document, with a checklist of what the photo must show. After a bad upload it repeats the checklist with ✓ and ✗. The upload page stays plain.' },
   d: { key: 'D', name: 'Hybrid: B + come back later',
-       desc: 'B\'s short texts and helpful upload page, plus a way out. The page offers "I\'ll come back later" before or after a bad upload. The Assistant confirms by text, the Client texts "ready" for a fresh link, and if nothing comes back the Assistant nudges on the Autonomy cadence (day 3, or the next day with 14 or fewer days left), then hands to the Agent.' },
+       desc: 'B\'s short texts and helpful upload page, plus a way out. The page offers "I\'ll come back later" before or after a bad upload. The Assistant confirms by text, the Client texts "ready" for a fresh link, and if nothing comes back the Assistant nudges on the Autonomy cadence (day 3, or the next day with 14 or fewer days left), then hands to the Agent. The Agent can text in the same Thread at any time ("Andrew here:"); the Assistant holds until the Agent hands back (see Marcus).' },
 };
 const ORDER = ['a', 'b', 'c', 'd'];
 
@@ -381,6 +381,16 @@ const SCRIPTS = {
       { a: "It might. Andrew, your licensed agent, needs to update your application, so I've passed this to him and he'll contact you. Please don't upload anything yet.", p: 'paused', dmi: 'escalated', log: ['escalate_to_agent', 'Income change reported', 'esc'], agent: ESC_INCOME,
         watch: 'Same as B. While the Escalation is open, the Assistant sends no nudges.' },
       { s: 'Marcus goes back to the page', web: true, watch: 'The page switches to "your agent will contact you" so it doesn\'t keep asking for an upload.' },
+      { s: 'Andrew opens Marcus in the Agent view and texts him from the Thread' },
+      { g: 'Andrew here: Hi Marcus, thanks for letting us know about the new job. Can I call you today at 4 to update your income together?', log: ['send_text (Agent)', 'Andrew texted Marcus from the Thread'],
+        agent: { kind: 'note', t: "You're in the Thread", d: 'The Assistant is holding its replies and nudges for Marcus until you hand back.' },
+        watch: 'Same number, same Thread. "Andrew here:" tells Marcus a person is writing now, not the AI.' },
+      { c: 'Yes, 4 works', log: ['(holding)', 'Reply left for Andrew; the Assistant does not answer', 'guard'],
+        watch: 'The Assistant stays quiet. Andrew is in the Thread, so the reply is his to answer.' },
+      { g: 'Andrew here: Great, talk then.', log: ['send_text (Agent)', 'Andrew texted Marcus from the Thread'] },
+      { s: 'After the call, Andrew updates the application, marks the Escalation handled and hands the Thread back', log: ['(resumed)', 'Escalation handled and Thread handed back; replies and nudges resume'],
+        agent: { kind: 'note', t: 'Handed back to the Assistant', d: 'The Assistant picks up Marcus on the usual cadence.' },
+        watch: 'Handing back needs both: the Escalation marked handled and the Thread handed back. Until then the Assistant stays paused.' },
     ],
     secure: [
       { a: `Hi Ada, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs a document showing your Social Security number by ${ADA.due}. Everything you need is here: ${LINK}\nReply with any questions. Reply STOP to opt out.`, log: send('Initial text with Portal link'), dmi: 'open', p: 'open' },
@@ -469,7 +479,8 @@ function render(animateLast) {
     if (s.tok) tok = s.tok;
     const lnk = `<span class="lnk" role="button" tabindex="0" data-open>portal.example/r/${tok}</span>`;
     if (s.a) { html += `<div class="msg asst${cls}">${esc(s.a).replaceAll(LINK, lnk)}</div>`; view = 'msgs' }
-    if (s.c) { html += `<div class="msg client${cls}">${esc(s.c)}</div>`; if (s.masked) html += `<div class="masknote">Stored masked · full number never kept</div>`; view = 'msgs' }
+    if (s.g) { html += `<div class="msg asst${cls}">${esc(s.g)}</div>`; view = 'msgs' }
+    if (s.c) { html +=`<div class="msg client${cls}">${esc(s.c)}</div>`; if (s.masked) html += `<div class="masknote">Stored masked · full number never kept</div>`; view = 'msgs' }
     if (s.s) { html += `<div class="sys">${esc(s.s)}</div>`; view = s.web ? 'web' : 'msgs' }
     if (s.p) p = s.p; if (s.dmi) dmi = s.dmi; if (s.agent) agent = s.agent; if (s.watch) watch = s.watch;
     if (s.log) log.unshift(s.log);
