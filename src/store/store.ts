@@ -28,6 +28,10 @@ export interface Store {
   reset(runDate: Date): void;
   agent(): Agent | null;
   list<C extends Collection>(collection: C): Row<C>[];
+  /** Appends a row to the end of a collection. */
+  add<C extends Collection>(collection: C, row: Row<C>): void;
+  /** Replaces the row with the same id; throws when there is none. */
+  update<C extends Collection>(collection: C, row: Row<C>): void;
   close(): void;
 }
 
@@ -71,6 +75,13 @@ export function openStore(path: string): Store {
     },
     agent: () => read("agents")[0] ?? null,
     list: (collection) => read(collection),
+    add: (collection, row) => {
+      insert(collection, row);
+    },
+    update(collection, row) {
+      const { changes } = db.prepare(`UPDATE ${collection} SET data = ? WHERE id = ?`).run(JSON.stringify(row), row.id);
+      if (changes === 0) throw new Error(`No ${collection} row with id ${row.id}`);
+    },
     close: () => db.close(),
   };
 }

@@ -1,0 +1,60 @@
+import type { AssistantTools, ClientId, ConsentCheck, ConsentRecordId, ToolName } from "../contract";
+import type { Store } from "../store/store";
+
+/** The tools built so far; the rest of `AssistantTools` arrives with later tickets. */
+export type Tools = Pick<AssistantTools, "check_consent" | "send_text" | "create_portal_link">;
+
+export interface ToolDeps {
+  store: Store;
+  now: () => Date;
+}
+
+/**
+ * The Assistant's tools over the store. Every guardrail lives here, not in the
+ * model (ADR 0001), and every call is written to the action log with the
+ * Consent record it ran under.
+ */
+export function createTools({ store, now }: ToolDeps): Tools {
+  const log = (clientId: ClientId, tool: ToolName, consentRecordId: ConsentRecordId | null, result: string) =>
+    store.add("actionLog", {
+      id: `log-${store.list("actionLog").length + 1}`,
+      clientId,
+      tool,
+      consentRecordId,
+      result,
+      at: now().toISOString(),
+    });
+
+  const check_consent: Tools["check_consent"] = async ({ clientId, action }) => {
+    const result = consentFor(store, clientId, action, now());
+    log(
+      clientId,
+      "check_consent",
+      result.allowed ? result.consentRecordId : null,
+      result.allowed ? `Allowed: ${action}` : `Refused: ${result.reason}`,
+    );
+    return result;
+  };
+
+  return {
+    check_consent,
+    send_text: async () => {
+      throw new Error("not built yet");
+    },
+    create_portal_link: async () => {
+      throw new Error("not built yet");
+    },
+  };
+}
+
+function consentFor(store: Store, clientId: ClientId, action: Parameters<Tools["check_consent"]>[0]["action"], at: Date): ConsentCheck {
+  const records = store.list("consentRecords").filter((r) => r.clientId === clientId);
+  if (records.length === 0) return { allowed: false, reason: "no_consent" };
+  const covering = records.filter((r) => r.actions.includes(action) && r.channels.includes("sms"));
+  if (covering.length === 0) return { allowed: false, reason: "action_not_covered" };
+  const live = covering.filter((r) => r.rescindedAt === null);
+  if (live.length === 0) return { allowed: false, reason: "rescinded" };
+  const current = live.find((r) => r.expiresAt === null || Date.parse(r.expiresAt) > at.getTime());
+  if (!current) return { allowed: false, reason: "expired" };
+  return { allowed: true, consentRecordId: current.id };
+}

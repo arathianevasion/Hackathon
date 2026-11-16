@@ -43,4 +43,28 @@ describe("store", () => {
     expect(store.list("clients")).toHaveLength(20);
     expect(store.list("dmis")).toEqual(buildSeed(RUN_DATE).dmis);
   });
+
+  it("appends a row to a collection and keeps it in order", () => {
+    store = openStore(":memory:");
+    store.reset(RUN_DATE);
+    const message = { id: "msg-1", clientId: "client-01", sender: "assistant" as const, sentAt: RUN_DATE.toISOString(), text: "Hi" };
+    store.add("messages", message);
+    store.add("messages", { ...message, id: "msg-2", text: "Again" });
+    expect(store.list("messages").map((m) => m.text)).toEqual(["Hi", "Again"]);
+  });
+
+  it("replaces a row by id", () => {
+    store = openStore(":memory:");
+    store.reset(RUN_DATE);
+    const [first] = store.list("clients");
+    store.update("clients", { ...first, optedOutAt: RUN_DATE.toISOString() });
+    expect(store.list("clients")[0]).toEqual({ ...first, optedOutAt: RUN_DATE.toISOString() });
+  });
+
+  it("refuses to update a row that does not exist", () => {
+    store = openStore(":memory:");
+    store.reset(RUN_DATE);
+    const [first] = store.list("clients");
+    expect(() => store.update("clients", { ...first, id: "client-99" })).toThrow(/client-99/);
+  });
 });
