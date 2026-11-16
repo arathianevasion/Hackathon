@@ -144,6 +144,14 @@ button:focus-visible { outline: none; box-shadow: var(--focus-shadow) }
 .card { border-radius: var(--radius-sm); box-shadow: var(--shadow-card) }
 .row:focus-visible, .card:focus-visible { outline: none; box-shadow: var(--focus-shadow) }
 .bubble.asst { background: var(--royal-light-2) }
+.bubble { white-space: pre-line }
+.bubble .who { display: block; font-size: 11px; font-weight: 700; opacity: .75; margin-bottom: 2px }
+.bubble.agent { background: var(--navy); color: #fff }
+.bubble.sys { justify-self: center; background: transparent; color: var(--muted); font-style: italic; font-size: 12px; text-align: center; padding: 2px 8px }
+.composer { display: grid; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line) }
+.composer textarea { width: 100%; font: inherit; border: 1px solid #cccccc; border-radius: var(--radius-xs); padding: 8px; resize: vertical }
+.composer textarea:focus-visible { outline: none; box-shadow: var(--focus-shadow); border-color: var(--accent) }
+.joined { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; background: var(--royal-light-1); border: 1px solid var(--royal-light-2); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 13px }
 </style>
 
 <div class="topbar">
@@ -151,7 +159,7 @@ button:focus-visible { outline: none; box-shadow: var(--focus-shadow) }
     <h1 id="title">Your book</h1>
     <div class="muted" id="subtitle"></div>
   </div>
-  <p class="proto-note">Prototype for ticket #9. Synthetic Clients only. Buttons are stubs except <b>Mark handled</b>, which updates every variant. Switch layouts with the bar at the bottom or the arrow keys.</p>
+  <p class="proto-note">Prototype for ticket #9. Synthetic Clients only. Threads follow client conversation variant D. In variant A you can text any Client from the Thread at any time; <b>Send</b>, <b>Hand back</b> and <b>Mark handled</b> work, other buttons are stubs. Switch layouts with the bar at the bottom or the arrow keys.</p>
 </div>
 <main id="app"></main>
 
@@ -170,14 +178,16 @@ const ago = n => n === 0 ? 'Today' : n === 1 ? 'Yesterday' : `${n}d ago`;
 
 // stage: contacting | waiting | checking | submitted | resolved ; flag: escalation trigger or null
 const clients = [
-  { id: 1, name: 'Rosa Delgado-Finch', dmi: 'Income', days: 10, stage: 'waiting', state: 'Insufficient upload, guidance sent', tone: 'warn',
-    thread: [['asst','Hi Rosa, this is the AI assistant working for your agent, Andrew. The Marketplace needs proof of your 2026 income to keep your premium help. Upload here: portal link.'],
-             ['client','Why do they need this? I already applied.'],
-             ['asst','The Marketplace could not match the income on your application with its records, so it asks for a document. A recent pay stub is the easiest option.'],
-             ['client','Uploaded a photo.'],
-             ['asst','Thanks. Two things to fix: the photo cuts off your name, and the pay period is not visible. Please retake it showing the top of the stub.']],
-    log: [[0,'precheck_document','Insufficient: cropped, missing name and pay period','CR-1041'],[1,'send_text','Answered "why is this needed"','CR-1041'],[2,'send_text','Initial text with portal link','CR-1041']] },
+  { id: 1, name: 'Rosa Delgado-Finch', dmi: 'Income', days: 10, stage: 'waiting', state: 'Coming back later, nudge tomorrow', tone: 'warn',
+    thread: [['asst','Hi Rosa, I\'m the AI assistant for your insurance agent, Andrew. The Marketplace needs proof of your income by {due}. Everything you need is here: {link}\nReply with any questions. Reply STOP to opt out.'],
+             ['sys','Rosa uploaded a photo of her pay stub. The pre-check found the name and pay period missing.'],
+             ['sys','Rosa tapped "I\'ll come back later" on the upload page.'],
+             ['asst','No problem, Rosa. When you have the whole pay stub, just text me "ready" and I\'ll send a new link. If I don\'t hear from you, I\'ll check in tomorrow.']],
+    log: [[0,'(scheduled)','Nudge tomorrow if no reply (10 days left)','CR-1041'],[0,'send_text','Confirmed "come back later"','CR-1041'],[0,'precheck_document','Insufficient: name and pay period missing','CR-1041'],[1,'send_text','Initial text with Portal link','CR-1041']] },
   { id: 2, name: 'Marcus Whitlow', dmi: 'Income', days: 23, stage: 'waiting', state: 'Escalated: income changed', tone: 'crit',
+    thread: [['asst','Hi Marcus, I\'m the AI assistant for your insurance agent, Andrew. The Marketplace needs proof of your income by {due}. Everything you need is here: {link}\nReply with any questions. Reply STOP to opt out.'],
+             ['client','I switched jobs last month, so my pay is lower now. Does that matter?'],
+             ['asst','It might. Andrew, your licensed agent, needs to update your application, so I\'ve passed this to him and he\'ll contact you. Please don\'t upload anything yet.']],
     esc: { trigger: 'Income changed, application update needed', summary: 'Started a new job on 1 Oct and expects about $18,000 less this year than the application shows. The Assistant cannot change the application.', quote: 'I switched jobs last month, so my pay is lower now. Does that matter?', next: 'Call Marcus to review and update the projected income with him.' },
     log: [[0,'escalate_to_agent','Income change reported','CR-1007'],[0,'send_text','Told Marcus his agent will follow up','CR-1007']] },
   { id: 3, name: 'Priya Anand-Holt', dmi: 'Income', days: 48, stage: 'contacting', state: 'Escalated: no response', tone: 'crit',
@@ -199,7 +209,13 @@ const clients = [
   { id: 10, name: 'Ollie Fenwick', dmi: 'Income', days: null, stage: 'resolved', state: 'Resolved', tone: 'ok', resolvedAgo: 12, log: [[12,'get_dmi_status','Marketplace marked resolved','CR-0950']] },
   { id: 11, name: 'Carmen Ibsen', dmi: 'Income', days: 14, stage: 'submitted', state: 'Submitted, Marketplace reviewing', tone: 'info', log: [[1,'submit_documents','Pay stubs submitted','CR-1033']] },
   { id: 12, name: 'Wes Thornbury', dmi: 'Income', days: 19, stage: 'checking', state: 'Checking upload', tone: 'work', log: [[0,'precheck_document','Running','CR-1034']] },
-  { id: 13, name: 'Ada Nkemelu', dmi: 'SSN', days: 26, stage: 'waiting', state: 'Answered a question', tone: 'work', log: [[0,'send_text','Explained which SSN documents work','CR-1035']] },
+  { id: 13, name: 'Ada Nkemelu', dmi: 'SSN', days: 26, stage: 'waiting', state: 'Coming back later, nudge in 3 days', tone: 'work',
+    thread: [['asst','Hi Ada, I\'m the AI assistant for your insurance agent, Andrew. The Marketplace needs a document showing your Social Security number by {due}. Everything you need is here: {link}\nReply with any questions. Reply STOP to opt out.'],
+             ['client','My SSN is ***-**-4417'],
+             ['asst','Please don\'t send your Social Security number by text. The Marketplace needs a document, and the link shows which ones work.'],
+             ['client','Ok. My card is in a box somewhere, I\'ll look this weekend'],
+             ['asst','No rush. When you find it, text me "ready" and I\'ll send a fresh link. If I haven\'t heard from you, I\'ll check in on {nudge3}.']],
+    log: [[0,'(scheduled)','Nudge on day 3 if no reply (26 days left)','CR-1035'],[0,'send_text','Asked Ada to use the Portal link, not text','CR-1035'],[0,'(guardrail)','SSN in Client text masked before storage','CR-1035']] },
   { id: 14, name: 'Felix Varga', dmi: 'Income', days: 34, stage: 'contacting', state: 'Initial text sent', tone: 'work', log: [[1,'send_text','Initial text with portal link','CR-1036']] },
   { id: 15, name: 'Noor Haddad', dmi: 'Income', days: 44, stage: 'submitted', state: 'Submitted, Marketplace reviewing', tone: 'info', log: [[3,'submit_documents','1040 submitted','CR-1037']] },
   { id: 16, name: 'Grace Pell', dmi: 'Income', days: 52, stage: 'waiting', state: 'Client replied, waiting for upload', tone: 'work', log: [[2,'send_text','Sent portal link again','CR-1038']] },
@@ -216,6 +232,48 @@ const notifications = [
   [6, 'Bea Santos', 'DMI resolved'],
 ];
 const handled = new Set();
+// ---------- Agent in the Thread ----------
+// joined: Clients whose Thread the Agent has joined. While joined, the Assistant holds its replies and nudges for that Client.
+const joined = new Set();
+const agentPosts = {};   // client id -> extra Thread entries added in this session
+const drafts = {};       // client id -> unsent composer text
+const AGENT_PREFIX = 'Andrew here: ';
+const first = c => c.name.split(' ')[0];
+const optedOut = c => c.tone === 'off';
+const fill = (t, c) => t.replace('{due}', c.days == null ? 'the deadline' : fmt(new Date(TODAY.getTime() + c.days * dayMs)))
+  .replace(/\{link\}/g, '[Portal link]').replace('{nudge3}', fmt(new Date(TODAY.getTime() + 3 * dayMs)));
+function baseThread(c) {
+  if (c.thread) return c.thread;
+  if (c.dmi === 'Citizenship') return [['sys', `The Assistant has not contacted ${first(c)}: citizenship DMIs always go to you.`]];
+  const doc = c.dmi === 'SSN' ? 'a document showing your Social Security number' : 'proof of your income';
+  const init = ['asst', `Hi ${first(c)}, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs ${doc} by {due}. Everything you need is here: {link}\nReply with any questions. Reply STOP to opt out.`];
+  if (optedOut(c)) return [init, ['client', 'STOP'], ['asst', "You're opted out and won't get more texts from me. Reply START to opt back in."]];
+  if (c.stage === 'resolved') return [init, ['sys', `${first(c)} uploaded a document. It passed the pre-check and was submitted.`], ['asst', "All set. The Marketplace accepted your document. Your coverage and premium help don't change."]];
+  if (c.stage === 'submitted') return [init, ['sys', `${first(c)} uploaded a document. It passed the pre-check and was submitted.`], ['asst', "Got it. I sent your document to the Marketplace. I'll text you when they're done."]];
+  const t = [init];
+  if (c.esc && c.esc.quote) t.push(['sys', 'Two uploads failed the pre-check.'], ['client', c.esc.quote]);
+  if (c.id === 3) t.push(['asst', `Hi ${first(c)}, just checking in. Here's a fresh link, good for 3 days: {link}\nReply if you have questions.`], ['sys', 'No reply for 7 days. The Assistant stopped and escalated to you.']);
+  return t;
+}
+const threadOf = c => [...baseThread(c), ...(agentPosts[c.id] || [])];
+const say = (c, entry) => (agentPosts[c.id] ||= []).push(entry);
+const crOf = c => c.log.length ? c.log[0][3] : '';
+function sendAsAgent(id) {
+  const c = clients.find(x => x.id === id), text = (drafts[id] || '').trim();
+  if (!text || optedOut(c)) return;
+  say(c, ['agent', AGENT_PREFIX + text]);
+  if (!joined.has(id)) { joined.add(id); c.log.unshift([0, '(holding)', 'You joined the Thread. Holding replies and nudges.', crOf(c)]); }
+  c.log.unshift([0, 'send_text (Agent)', 'You texted ' + first(c), crOf(c)]);
+  drafts[id] = '';
+}
+function handBack(id) {
+  const c = clients.find(x => x.id === id);
+  joined.delete(id);
+  const stillEsc = c.esc && !handled.has(id);
+  say(c, ['sys', stillEsc ? 'You handed the Thread back. The Assistant stays paused until you mark the Escalation handled.' : 'You handed the Thread back to the Assistant. It picks up from here.']);
+  c.log.unshift([0, '(resumed)', stillEsc ? 'Thread handed back; still paused for the open Escalation' : 'Thread handed back; replies and nudges resume', crOf(c)]);
+}
+let focusComposer = false;
 let selected = 1;
 let filter = 'all'; // all | needs | working | due14 | resolved
 const FILTERS = {
@@ -231,6 +289,8 @@ const daysCls = d => d == null ? '' : d <= 7 ? 'crit' : d <= 14 ? 'warn' : '';
 const deadline = c => c.days == null ? `<span class="muted">Resolved ${ago(c.resolvedAgo).toLowerCase()}</span>` :
   `<span class="days ${daysCls(c.days)} num">${c.days}d</span> <span class="muted mono">${fmt(new Date(TODAY.getTime() + c.days * dayMs))}</span>`;
 const chip = c => {
+  const escOpen = c.esc && !handled.has(c.id);
+  if (joined.has(c.id) && !escOpen) return `<span class="chip info">You're in the Thread</span>`;
   const tone = c.esc && handled.has(c.id) ? 'ok' : c.tone;
   const text = c.esc && handled.has(c.id) ? 'Handled by you' : c.state;
   return `<span class="chip ${tone}">${text}</span>`;
@@ -259,8 +319,21 @@ function variantA() {
   const esc = c.esc && !handled.has(c.id) ? `
     <div class="handoff"><div class="label" style="color:var(--crit)">Needs you</div><b>${c.esc.trigger}</b><div>${c.esc.summary}</div>
       ${c.esc.quote ? `<div class="quote">"${c.esc.quote}"</div>` : ''}<div><b>Suggested next step:</b> ${c.esc.next}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" data-handle="${c.id}">Mark handled</button><button>Take over thread</button></div></div>` : '';
-  const thread = c.thread ? `<div><div class="label">Thread</div><div class="thread">${c.thread.map(([who, t]) => `<div class="bubble ${who}">${t}</div>`).join('')}</div></div>` : '';
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" data-handle="${c.id}">Mark handled</button><button data-reply>Reply in Thread</button></div></div>` : '';
+  const WHO = { asst: 'Assistant', client: first(c), agent: 'You (Andrew)' };
+  const bubbles = threadOf(c).map(([who, t]) => who === 'sys'
+    ? `<div class="bubble sys">${fill(t, c)}</div>`
+    : `<div class="bubble ${who}"><span class="who">${WHO[who]}</span>${fill(t, c)}</div>`).join('');
+  const composer = optedOut(c)
+    ? `<div class="chip off" style="white-space:normal">${first(c)} opted out, so nobody can text from this number until ${first(c)} replies START. Call instead.</div>`
+    : `<div class="composer">
+        ${joined.has(c.id)
+          ? `<div class="joined"><span>You're in the Thread. The Assistant is holding its replies and nudges for ${first(c)}.</span><button data-handback="${c.id}">Hand back to the Assistant</button></div>`
+          : `<div class="muted" style="font-size:12px">Texts ${first(c)} from the same number, starting "${AGENT_PREFIX.trim()}". Once you send, the Assistant holds its replies and nudges until you hand back.</div>`}
+        <textarea data-draft="${c.id}" rows="2" aria-label="Message ${first(c)} as Andrew" placeholder="Message ${first(c)}…">${drafts[c.id] || ''}</textarea>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="mono muted">Enter to send · Shift+Enter for a new line</span><button class="primary" data-send="${c.id}">Send</button></div>
+      </div>`;
+  const thread = `<div><div class="label">Thread</div><div class="thread">${bubbles}</div>${composer}</div>`;
   return `
     <div class="a-stats">${tiles}</div>
     <div class="a-filter-note">${filter === 'all'
@@ -345,6 +418,7 @@ function render() {
   const v = variants.find(x => x[0] === current());
   document.getElementById('app').innerHTML = v[2]();
   document.getElementById('vlabel').textContent = v[1];
+  if (focusComposer) { focusComposer = false; document.querySelector('[data-draft]')?.focus(); }
   document.getElementById('subtitle').textContent =
     `Andrew's ACA Clients · ${open().length} open DMIs · ${escalations().length} need you · ${TODAY.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`;
 }
@@ -360,7 +434,16 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') step(1);
   if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.sel) { selected = +e.target.dataset.sel; render(); }
 });
-document.getElementById('app').addEventListener('click', e => {
+const app = document.getElementById('app');
+app.addEventListener('input', e => { const d = e.target.closest('[data-draft]'); if (d) drafts[+d.dataset.draft] = d.value; });
+app.addEventListener('keydown', e => {
+  const d = e.target.closest('[data-draft]');
+  if (d && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAsAgent(+d.dataset.draft); focusComposer = true; render(); }
+});
+app.addEventListener('click', e => {
+  const s = e.target.closest('[data-send]'); if (s) { sendAsAgent(+s.dataset.send); focusComposer = true; render(); return; }
+  const b = e.target.closest('[data-handback]'); if (b) { handBack(+b.dataset.handback); render(); return; }
+  if (e.target.closest('[data-reply]')) { app.querySelector('[data-draft]')?.focus(); return; }
   const h = e.target.closest('[data-handle]'); if (h) { handled.add(+h.dataset.handle); render(); return; }
   const f = e.target.closest('[data-filter]'); if (f) { filter = (f.dataset.filter === filter ? 'all' : f.dataset.filter); render(); return; }
   const r = e.target.closest('[data-sel]'); if (r) { selected = +r.dataset.sel; render(); }
