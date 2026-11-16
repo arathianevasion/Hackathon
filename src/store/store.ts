@@ -19,6 +19,7 @@ const COLLECTIONS: readonly Collection[] = [
   "notifications",
   "actionLog",
   "portalLinks",
+  "documentFiles",
 ];
 
 /** The demo's SQLite database: the Agent and the entity collections. */

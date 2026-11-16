@@ -51,3 +51,33 @@ export function redeemPortalLink(store: Store, url: string, at: Date): Redemptio
   store.update("portalLinks", used);
   return { ok: true, link: used };
 }
+
+/** How long an opened Portal link keeps its upload page usable (spec: a 30-minute upload session). */
+export const UPLOAD_SESSION_MINUTES = 30;
+
+export type UploadSession =
+  | { ok: true; link: IssuedPortalLink }
+  | { ok: false; reason: "unknown" | "not_opened" | "used" | "expired" };
+
+/**
+ * The upload session a Portal link opened, if it is still running: from the
+ * link's first open, for 30 minutes. Reading it changes nothing.
+ */
+export function uploadSession(store: Store, url: string, at: Date): UploadSession {
+  const link = store.list("portalLinks").find((l) => l.url === url);
+  if (!link) return { ok: false, reason: "unknown" };
+  if (link.usedAt === null) return { ok: false, reason: Date.parse(link.expiresAt) <= at.getTime() ? "expired" : "not_opened" };
+  if (at.getTime() >= Date.parse(link.usedAt) + UPLOAD_SESSION_MINUTES * 60_000) return { ok: false, reason: "used" };
+  return { ok: true, link };
+}
+
+/**
+ * The Client taps a Portal link: its first open uses the single-use link up
+ * and starts the upload session; opening it again within that session (a
+ * reload, "Done" and back) returns the same session and nothing else.
+ */
+export function openUploadSession(store: Store, url: string, at: Date): UploadSession {
+  const running = uploadSession(store, url, at);
+  if (running.ok || running.reason !== "not_opened") return running;
+  return redeemPortalLink(store, url, at);
+}

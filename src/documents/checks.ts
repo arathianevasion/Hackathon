@@ -24,7 +24,7 @@ export interface JudgeInput {
 
 export interface Judgement {
   result: Exclude<PrecheckResult, "pending">;
-  /** Every issue found, in check order; empty when sufficient. Never holds more than an SSN's last 4. */
+  /** Every issue found, in check order; empty when sufficient. Never echoes extracted text, and never more than an SSN's last 4. */
   reasons: string[];
   checksRun: CheckNumber[];
 }
@@ -65,7 +65,7 @@ export function judgeDocument(input: JudgeInput): Judgement {
         if (fields.cropped) fail(1, "The document is cropped");
         break;
       case 2:
-        if (!docKey) fail(2, `${withArticle(fields.documentType ?? "unknown document")} is not a document that works for this DMI`);
+        if (!docKey) fail(2, "Not a document that works for this DMI");
         break;
       case 3:
         if (fields.name !== null && !sameName(fields.name, input.client)) fail(3, "The name does not match the Client");
@@ -137,8 +137,4 @@ function sameName(printed: string, client: { firstName: string; lastName: string
 
 function digits(s: string): string {
   return s.replace(/\D/g, "");
-}
-
-function withArticle(noun: string): string {
-  return `${/^[aeiou]/i.test(noun) ? "An" : "A"} ${noun}`;
 }

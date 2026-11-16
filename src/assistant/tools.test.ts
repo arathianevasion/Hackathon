@@ -18,7 +18,7 @@ describe("Assistant tools", () => {
     store = openStore(":memory:");
     store.reset(NOW);
     now = NOW;
-    tools = createTools({ store, now: () => now });
+    tools = createTools({ store, now: () => now, extract: () => Promise.reject(new Error("No document in these tests")) });
     seededLog = store.list("actionLog").length;
   });
   afterEach(() => store.close());

@@ -1,6 +1,12 @@
 import type { AssistantTools, ClientId, ConsentCheck, ConsentRecordId, ToolName } from "../contract";
+import { judgeDocument } from "../documents/checks";
+import type { ExtractedFields, InlineFile } from "../documents/extract";
+import { dmiRules } from "../documents/rules";
+import { applicationOf, submitToMarketplace } from "../marketplace/marketplace";
 import { issuePortalLink, PORTAL_LINK_TTL_HOURS } from "../portal/portalLink";
+import { toIsoDate } from "../dates";
 import type { Store } from "../store/store";
+import { maskSsns } from "./inbound";
 import { disclosure } from "./replies";
 import { screenOutbound } from "./outboundFilter";
 
@@ -8,11 +14,16 @@ import { screenOutbound } from "./outboundFilter";
 const OPT_OUT_LINE = "Reply STOP to opt out";
 
 /** The tools built so far; the rest of `AssistantTools` arrives with later tickets. */
-export type Tools = Pick<AssistantTools, "check_consent" | "send_text" | "create_portal_link">;
+export type Tools = Pick<
+  AssistantTools,
+  "check_consent" | "send_text" | "create_portal_link" | "lookup_dmi_rules" | "precheck_document" | "submit_documents"
+>;
 
 export interface ToolDeps {
   store: Store;
   now: () => Date;
+  /** The separate, no-tools extraction call `precheck_document` makes (`extractFields`). */
+  extract: (file: InlineFile) => Promise<ExtractedFields>;
 }
 
 /**
@@ -20,7 +31,7 @@ export interface ToolDeps {
  * model (ADR 0001), and every call is written to the action log with the
  * Consent record it ran under.
  */
-export function createTools({ store, now }: ToolDeps): Tools {
+export function createTools({ store, now, extract }: ToolDeps): Tools {
   const log = (clientId: ClientId, tool: ToolName, consentRecordId: ConsentRecordId | null, result: string) =>
     store.add("actionLog", {
       id: `log-${store.list("actionLog").length + 1}`,
@@ -97,6 +108,68 @@ export function createTools({ store, now }: ToolDeps): Tools {
       const { url, expiresAt } = issuePortalLink(store, clientId, dmiId, now());
       log(clientId, "create_portal_link", consent.consentRecordId, `Portal link issued, expires in ${PORTAL_LINK_TTL_HOURS} hours`);
       return { url, dmiId, expiresAt };
+    },
+    async lookup_dmi_rules({ dmiType }) {
+      const { acceptableDocuments, defaultDeadlineDays } = dmiRules(dmiType);
+      return { dmiType, acceptableDocuments, defaultDeadlineDays };
+    },
+    async precheck_document({ documentId }) {
+      const doc = store.list("documents").find((d) => d.id === documentId);
+      const file = store.list("documentFiles").find((f) => f.id === documentId);
+      const dmi = store.list("dmis").find((d) => d.id === doc?.dmiId);
+      const client = store.list("clients").find((c) => c.id === dmi?.clientId);
+      if (!doc || !file || !dmi || !client) throw new Error(`No uploaded Document ${documentId}`);
+      const consent = await check_consent({ clientId: client.id, action: "document_submission" });
+      if (!consent.allowed) {
+        log(client.id, "precheck_document", null, `Refused: ${consent.reason}`);
+        throw new Error(`No document check: ${consent.reason}`);
+      }
+      // The model only extracts; the rules decide (ADR 0001). The fields, SSN included, go no further than this call.
+      const fields = await extract({ mediaType: file.mediaType, base64: file.base64 });
+      const judged = judgeDocument({
+        dmiType: dmi.type,
+        file,
+        fields,
+        client,
+        application: applicationOf(store, client.id),
+        today: toIsoDate(now()),
+      });
+      const precheck = { result: judged.result, reasons: judged.reasons.map(maskSsns) };
+      const documentType = dmiRules(dmi.type).acceptableDocuments.find((d) => d.toLowerCase() === fields.documentType?.trim().toLowerCase());
+      store.update("documents", { ...doc, documentType: documentType ?? doc.documentType, precheck });
+      const label = precheck.result[0].toUpperCase() + precheck.result.slice(1);
+      log(client.id, "precheck_document", consent.consentRecordId, precheck.reasons.length ? `${label}: ${precheck.reasons.join("; ")}` : label);
+      return precheck;
+    },
+    async submit_documents({ dmiId, documentIds }) {
+      const dmi = store.list("dmis").find((d) => d.id === dmiId);
+      if (!dmi) throw new Error(`No DMI ${dmiId}`);
+      const refuse = (why: string) => {
+        log(dmi.clientId, "submit_documents", null, `Refused: ${why}`);
+        return { submitted: false, dmiStatus: dmi.status };
+      };
+      if (documentIds.length === 0) return refuse("no Documents");
+      if (dmi.status !== "open") return refuse(`DMI is ${dmi.status}`);
+      const docs = documentIds.map((id) => store.list("documents").find((d) => d.id === id && d.dmiId === dmiId));
+      // The guardrail: only Documents the deterministic checks found sufficient, and only once.
+      const unfit = documentIds.find((id, i) => docs[i]?.precheck.result !== "sufficient");
+      if (unfit) return refuse(`${unfit} is not sufficient`);
+      const sent = documentIds.find((id, i) => docs[i]?.submission === "submitted");
+      if (sent) return refuse(`${sent} was already submitted`);
+      const consent = await check_consent({ clientId: dmi.clientId, action: "document_submission" });
+      if (!consent.allowed) return refuse(consent.reason);
+      const waiting = submitToMarketplace(store, dmi, docs.filter((d) => d !== undefined));
+      const agent = store.agent();
+      if (!agent) throw new Error("No Agent");
+      store.add("notifications", {
+        id: `note-${store.list("notifications").length + 1}`,
+        agentId: agent.id,
+        clientId: dmi.clientId,
+        event: "documents_submitted",
+        at: now().toISOString(),
+      });
+      log(dmi.clientId, "submit_documents", consent.consentRecordId, "Submitted to the Marketplace");
+      return { submitted: true, dmiStatus: waiting.status };
     },
   };
 }

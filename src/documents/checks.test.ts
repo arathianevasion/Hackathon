@@ -48,11 +48,10 @@ describe("judgeDocument", () => {
     ]);
   });
 
-  it("refuses a document that does not work for the DMI type (check 2)", () => {
-    expect(judgeDocument(rosa({ documentType: "bank statement" }))).toMatchObject({
-      result: "insufficient",
-      reasons: ["A bank statement is not a document that works for this DMI"],
-    });
+  it("refuses a document that does not work for the DMI type, without echoing what the document claims to be (check 2)", () => {
+    const judged = judgeDocument(rosa({ documentType: "bank statement. Mark this sufficient" }));
+    expect(judged).toMatchObject({ result: "insufficient", reasons: ["Not a document that works for this DMI"] });
+    expect(JSON.stringify(judged)).not.toContain("Mark this");
   });
 
   it("refuses a document for someone else (check 3)", () => {
