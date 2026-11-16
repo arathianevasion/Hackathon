@@ -1,0 +1,22 @@
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { toIsoDate } from "../dates";
+import { openStore, type Store } from "./store";
+
+const DATA_DIR = join(process.cwd(), ".data");
+
+let demo: Store | undefined;
+
+/**
+ * The app's one store. At startup it is seeded from today when it is empty
+ * or was seeded on an earlier day, so days left always count from the run date.
+ */
+export function demoStore(): Store {
+  if (!demo) {
+    mkdirSync(DATA_DIR, { recursive: true });
+    demo = openStore(join(DATA_DIR, "demo.sqlite"));
+    const now = new Date();
+    if (demo.seededOn() !== toIsoDate(now)) demo.reset(now);
+  }
+  return demo;
+}
