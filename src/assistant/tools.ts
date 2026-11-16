@@ -56,10 +56,11 @@ export function createTools({ store, now }: ToolDeps): Tools {
         log(clientId, "send_text", null, `Refused: no_consent (${consent.reason})`);
         return { sent: false, reason: "no_consent" };
       }
-      const isFirstText = !store.list("messages").some((m) => m.clientId === clientId && m.sender === "assistant");
+      // A reply to a Client's text is not a first text: only an empty Thread makes it one.
+      const isFirstText = !store.list("messages").some((m) => m.clientId === clientId);
       if (isFirstText) {
-        const agent = store.list("agents").find((a) => a.id === client.agentId);
-        if (!agent) throw new Error(`No Agent ${client.agentId}`);
+        const agent = store.agent();
+        if (!agent) throw new Error("No Agent");
         const seen = normalize(text);
         const lacks = !seen.includes(normalize(disclosure(agent.firstName)))
           ? "first text lacks the AI disclosure"

@@ -182,6 +182,11 @@ describe("Assistant tools", () => {
       expect(await tools.send_text({ clientId: ROSA, text })).toMatchObject({ sent: true });
     });
 
+    it("does not hold an Assistant reply to a Client's text to the first-text check", async () => {
+      store.add("messages", { id: "msg-in", clientId: ROSA, sender: "client", sentAt: NOW.toISOString(), text: "Why?" });
+      expect(await tools.send_text({ clientId: ROSA, text: "It's a routine check." })).toMatchObject({ sent: true });
+    });
+
     it("does not hold later texts to the first-text check", async () => {
       await tools.send_text({ clientId: ROSA, text: `${FIRST_TEXT_HEAD}Reply STOP to opt out.` });
       expect(await tools.send_text({ clientId: ROSA, text: "Thanks, that works." })).toMatchObject({ sent: true });
