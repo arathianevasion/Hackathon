@@ -7,7 +7,7 @@ export interface Cadence {
   escalateAfterDays: number;
 }
 
-/** Days left above which the relaxed schedule applies. */
+/** At this many days left or fewer, the compressed schedule applies. */
 export const COMPRESSED_AT_DAYS_LEFT = 14;
 
 /** The cadence for a DMI with `daysLeft` days to its deadline (spec, "Nudge schedule"). */
