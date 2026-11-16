@@ -14,3 +14,9 @@ Things that must always come back to the Artisan. Only the Artisan changes this 
 
 - `pr-boundaries`: one PR per slice (set at setup).
 
+
+## Checks
+
+- `npm run typecheck`: proven to fail on 2026-11-16, breaking: a string assigned to a `number` export in `src/queue/rank.ts`
+- `npm run lint`: proven to fail on 2026-11-16, breaking: `var` and `debugger` added to `app/actions.ts`
+- `npm test`: proven to fail on 2026-11-16, breaking: `rankByDeadline` sorting turned off in `src/queue/rank.ts`
