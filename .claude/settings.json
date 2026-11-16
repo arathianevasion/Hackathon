@@ -1,8 +1,33 @@
 {
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
-      "source": { "source": "github", "repo": "anthropics/claude-plugins-official" }
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "artisan-agent": {
+      "source": {
+        "source": "github",
+        "repo": "arathianevasion/artisan-agent"
+      }
     }
   },
-  "enabledPlugins": { "mattpocock-skills@claude-plugins-official": true }
+  "enabledPlugins": {
+    "mattpocock-skills@claude-plugins-official": true,
+    "artisan-agent@artisan-agent": true
+  },
+  "permissions": {
+    "deny": [
+      "Skill(mattpocock-skills:implement-spec)",
+      "Skill(mattpocock-skills:implement)",
+      "Skill(mattpocock-skills:to-spec)",
+      "Skill(mattpocock-skills:retro)",
+      "Skill(mattpocock-skills:triage)",
+      "Skill(mattpocock-skills:grill-with-docs)"
+    ]
+  },
+  "env": {
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "40"
+  }
 }
