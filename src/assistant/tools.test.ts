@@ -177,6 +177,11 @@ describe("Assistant tools", () => {
       expect(await tools.send_text({ clientId: ROSA, text })).toMatchObject({ sent: true });
     });
 
+    it("accepts a first text with a curly apostrophe or different casing in the required phrases", async () => {
+      const text = "Hi Rosa, I\u2019m the AI assistant for your insurance agent, Andrew. reply stop to opt out";
+      expect(await tools.send_text({ clientId: ROSA, text })).toMatchObject({ sent: true });
+    });
+
     it("does not hold later texts to the first-text check", async () => {
       await tools.send_text({ clientId: ROSA, text: `${FIRST_TEXT_HEAD}Reply STOP to opt out.` });
       expect(await tools.send_text({ clientId: ROSA, text: "Thanks, that works." })).toMatchObject({ sent: true });

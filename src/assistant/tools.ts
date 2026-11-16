@@ -60,9 +60,10 @@ export function createTools({ store, now }: ToolDeps): Tools {
       if (isFirstText) {
         const agent = store.list("agents").find((a) => a.id === client.agentId);
         if (!agent) throw new Error(`No Agent ${client.agentId}`);
-        const lacks = !text.toLowerCase().includes(disclosure(agent.firstName).toLowerCase())
+        const seen = normalize(text);
+        const lacks = !seen.includes(normalize(disclosure(agent.firstName)))
           ? "first text lacks the AI disclosure"
-          : !text.includes(OPT_OUT_LINE)
+          : !seen.includes(normalize(OPT_OUT_LINE))
             ? `first text lacks "${OPT_OUT_LINE}"`
             : null;
         if (lacks) {
@@ -97,6 +98,11 @@ export function createTools({ store, now }: ToolDeps): Tools {
       return { url, dmiId, expiresAt };
     },
   };
+}
+
+/** Lower-case with curly apostrophes made straight, so typography doesn't fail the required phrases. */
+function normalize(text: string): string {
+  return text.replace(/[\u2018\u2019]/g, "'").toLowerCase();
 }
 
 function consentFor(store: Store, clientId: ClientId, action: Parameters<Tools["check_consent"]>[0]["action"], at: Date): ConsentCheck {
