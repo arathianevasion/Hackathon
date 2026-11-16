@@ -94,3 +94,11 @@ details p { margin: 6px 0 0; font-size: 13px; }
 .button { display: block; font-weight: 600; cursor: pointer; border-radius: 4px; border: 1px solid #cccccc; background: var(--surface); padding: 8px 12px; }
 .button.primary { background: var(--royal); border-color: var(--royal); color: #fff; }
 .status.work { background: #eef3ff; color: var(--navy); }
+
+/* Two-device demo: /phone is the Client's real phone, full-screen; the Agent view can drop the phone panel. */
+.layout.no-phone { grid-template-columns: minmax(0, 1fr); }
+.phone.standalone { position: static; width: auto; padding: 0; background: none; border-radius: 0; box-shadow: none; }
+.phone.standalone .phone-screen { height: 100dvh; border-radius: 0; }
+.phone-full { display: flex; flex-direction: column; min-height: 100dvh; background: var(--surface); }
+.bubble-link { color: var(--royal); text-decoration: underline; overflow-wrap: anywhere; }
+.bubble.mine a.bubble-link { color: #fff; }
