@@ -104,7 +104,10 @@ export function UploadPage({ token, state }: { token: string; state: UploadPageS
         <span className="big">Upload {copy.choices[0].label.toLowerCase()}</span>
         <span className="cap">Photo, JPG, PNG or PDF</span>
         {sending ? (
-          <span className="cap" role="status">Checking your document…</span>
+          <div className="status work" role="status">
+            <span className="t">Checking your document…</span>
+            <span>This takes a few seconds. You&apos;ll get a text with the result.</span>
+          </div>
         ) : (
           <>
             <label className="button primary">

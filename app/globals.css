@@ -93,3 +93,4 @@ details p { margin: 6px 0 0; font-size: 13px; }
 .drop .big { font-weight: 700; }
 .button { display: block; font-weight: 600; cursor: pointer; border-radius: 4px; border: 1px solid #cccccc; background: var(--surface); padding: 8px 12px; }
 .button.primary { background: var(--royal); border-color: var(--royal); color: #fff; }
+.status.work { background: #eef3ff; color: var(--navy); }

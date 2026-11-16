@@ -94,6 +94,7 @@ async function checkUpload(event: Extract<DomainEvent, { name: "document.uploade
 const FIRST_TEXT_TOOLS: ToolName[] = ["check_consent", "create_portal_link", "send_text"];
 
 async function runModel(clientId: ClientId, prompt: string, deps: RunDeps, toolNames = FIRST_TEXT_TOOLS): Promise<void> {
+  const available = modelTools(clientId, deps);
   await deps.model.beta.messages.toolRunner({
     model: ASSISTANT_MODEL,
     max_tokens: 1024,
@@ -102,7 +103,7 @@ async function runModel(clientId: ClientId, prompt: string, deps: RunDeps, toolN
     fallbacks: "default",
     system: SYSTEM,
     tools: toolNames.map((name) => {
-      const tool = modelTools(clientId, deps).find((t) => t.name === name);
+      const tool = available.find((t) => t.name === name);
       if (!tool) throw new Error(`No model tool ${name}`);
       return tool;
     }),
