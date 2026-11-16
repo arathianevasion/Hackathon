@@ -4,7 +4,7 @@ import { issuePortalLink, openUploadSession } from "../portal/portalLink";
 import { receiveUpload } from "../portal/upload";
 import { openStore, type Store } from "../store/store";
 import { receiveClientText } from "./inbound";
-import { runAssistant, type ModelClient, type RunnerParams } from "./run";
+import { confirmationText, runAssistant, type ModelClient, type RunnerParams } from "./run";
 
 const NOW = new Date("2026-11-16T15:00:00Z");
 const ROSA = "client-01"; // income DMI dmi-01, due 2026-11-26, CR-1041
@@ -330,5 +330,12 @@ describe("runAssistant on document.uploaded", () => {
     await rosaUploads(model);
     expect(store.list("dmis").find((d) => d.id === "dmi-01")!.status).toBe("open");
     expect(store.list("actionLog").at(-1)).toMatchObject({ tool: "submit_documents", result: expect.stringMatching(/^Refused: .* is not sufficient$/) });
+  });
+});
+
+describe("confirmationText", () => {
+  it("names a pay stub as a pay stub and any other document type as a document", () => {
+    expect(confirmationText("pay stub")).toBe("Got it. I sent your pay stub to the Marketplace. They make the final decision, and I'll text you when they're done.");
+    expect(confirmationText("W-2")).toBe("Got it. I sent your document to the Marketplace. They make the final decision, and I'll text you when they're done.");
   });
 });
