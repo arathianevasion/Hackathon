@@ -1,4 +1,5 @@
 import type { AssistantTools, ClientId, ConsentCheck, ConsentRecordId, ToolName } from "../contract";
+import { issuePortalLink, PORTAL_LINK_TTL_HOURS } from "../portal/portalLink";
 import type { Store } from "../store/store";
 
 /** The tools built so far; the rest of `AssistantTools` arrives with later tickets. */
@@ -41,8 +42,17 @@ export function createTools({ store, now }: ToolDeps): Tools {
     send_text: async () => {
       throw new Error("not built yet");
     },
-    create_portal_link: async () => {
-      throw new Error("not built yet");
+    async create_portal_link({ clientId, dmiId }) {
+      const dmi = store.list("dmis").find((d) => d.id === dmiId && d.clientId === clientId);
+      if (!dmi) throw new Error(`${dmiId} is not a DMI of ${clientId}`);
+      const consent = await check_consent({ clientId, action: "portal_link" });
+      if (!consent.allowed) {
+        log(clientId, "create_portal_link", null, `Refused: ${consent.reason}`);
+        throw new Error(`No Portal link: ${consent.reason}`);
+      }
+      const { url, expiresAt } = issuePortalLink(store, clientId, dmiId, now());
+      log(clientId, "create_portal_link", consent.consentRecordId, `Portal link issued, expires in ${PORTAL_LINK_TTL_HOURS} hours`);
+      return { url, dmiId, expiresAt };
     },
   };
 }

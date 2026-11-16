@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openStore, type Store } from "../store/store";
+import { redeemPortalLink } from "../portal/portalLink";
 import { createTools, type Tools } from "./tools";
 
 const NOW = new Date("2026-11-16T15:00:00Z");
@@ -57,6 +58,55 @@ describe("Assistant tools", () => {
         allowed: false,
         reason: "action_not_covered",
       });
+    });
+  });
+
+  describe("create_portal_link", () => {
+    it("issues a Portal link for the DMI that expires 72 hours later, and logs it with the Consent record", async () => {
+      const link = await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
+      expect(link.dmiId).toBe("dmi-01");
+      expect(link.url).toMatch(/^https:\/\/portal\.example\/r\/[A-Z0-9]{10}$/);
+      expect(link.expiresAt).toBe("2026-11-19T15:00:00.000Z");
+      expect(newLogEntries()).toMatchObject([
+        { tool: "check_consent", consentRecordId: "CR-1041", result: "Allowed: portal_link" },
+        { tool: "create_portal_link", consentRecordId: "CR-1041", result: "Portal link issued, expires in 72 hours" },
+      ]);
+    });
+
+    it("issues a different link every time", async () => {
+      const a = await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
+      const b = await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
+      expect(a.url).not.toBe(b.url);
+    });
+
+    it("opens once only", async () => {
+      const link = await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
+      expect(redeemPortalLink(store, link.url, NOW)).toMatchObject({ ok: true, link: { dmiId: "dmi-01", clientId: ROSA } });
+      expect(redeemPortalLink(store, link.url, NOW)).toEqual({ ok: false, reason: "used" });
+    });
+
+    it("does not open after 72 hours", async () => {
+      const link = await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
+      expect(redeemPortalLink(store, link.url, new Date("2026-11-19T15:00:00Z"))).toEqual({ ok: false, reason: "expired" });
+    });
+
+    it("does not open a link it never issued", () => {
+      expect(redeemPortalLink(store, "https://portal.example/r/NOTREAL123", NOW)).toEqual({ ok: false, reason: "unknown" });
+    });
+
+    it("refuses without consent for Portal links, issuing nothing", async () => {
+      store.update("consentRecords", { ...consentOf(ROSA), actions: ["text_outreach"] });
+      await expect(tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" })).rejects.toThrow(/action_not_covered/);
+      expect(store.list("portalLinks")).toEqual([]);
+      expect(newLogEntries()).toMatchObject([
+        { tool: "check_consent", result: "Refused: action_not_covered" },
+        { tool: "create_portal_link", consentRecordId: null, result: "Refused: action_not_covered" },
+      ]);
+    });
+
+    it("refuses a DMI that is not this Client's", async () => {
+      await expect(tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-02" })).rejects.toThrow(/dmi-02/);
+      expect(store.list("portalLinks")).toEqual([]);
     });
   });
 });
