@@ -1,0 +1,226 @@
+# .artisan-agent/config.yml: the project's settings. Committed.
+#
+# Every number the pipeline uses lives here as a product guardrail; the values
+# below are the Artisan's own preferences, used as defaults. A key left out
+# (or left empty) falls back to the default shown here, so this file only
+# needs the keys a project changes. A lasting change is job 23; a change for
+# one run only is an override at the plan step, written to that run's state
+# file and never here.
+#
+# Read by scripts/config.sh. Plain YAML: maps, scalars, [flow, lists] and
+# "- item" lists of scalars. Key spellings: see scripts/README.md (Config).
+
+# Workers in flight at once. Review capacity comes from this and the gates.
+max_agents: 5
+
+# How often the chats sweep, in minutes. The orchestrator sweeps on every
+# wake, at least every ten minutes (one wait-any.sh call, #175).
+sweep_minutes: 5
+
+# Context drain rules, as a percentage of the context window.
+context:
+  drain_percent: 30     # dispatch nothing new, hand off once idle
+  review_percent: 50    # every merge from here gets a risk gate
+
+# The Run chat's context: it never asks the Artisan to compact.
+# Above warn_percent every message ends with a one-line warning; Claude Code
+# compacts the chat on its own at compact_percent (setup writes it to the
+# project settings as CLAUDE_AUTOCOMPACT_PCT_OVERRIDE); if the chat passes
+# compact_percent + 15 without that having happened, it asks once for /compact.
+# window_tokens is the window the chat is expected to have (Opus, 1M); it is
+# recorded, not forced, because the settings env applies to every session.
+chat_context:
+  warn_percent: 30
+  compact_percent: 40
+  window_tokens: 1000000
+
+# Budget = approved estimate + this percentage.
+overrun_allowance_percent: 25
+
+# Plan-usage guard: park when the 5-hour window is within this reserve, or
+# the 7-day window passes this ceiling.
+usage_reserve:
+  five_hour_reserve_percent: 20
+  seven_day_ceiling_percent: 90
+
+# A usage reading older than this counts as unknown, and unknown stops dispatch.
+stale_usage_minutes: 10
+
+# Failed attempts allowed before a ticket is blocked.
+attempts_per_ticket: 2
+
+# The orchestrator's turn budget (#175): wave.sh launch gives each wave's
+# orchestrator --max-turns base + per_ticket x T + per_ci_gate x G, where T is
+# the tickets the wave can take (the scope's tickets not yet merged or blocked,
+# at most Max Agents) and G is T when this machine's merge gate runs on CI
+# (each ticket may need a gate of its own; merge batches only need fewer), 0
+# when it runs here. A ticket costs about a dozen turns (dispatch, wait and
+# sweep, verify, judge, merge, close, drain checks); a CI gate about ten, since
+# a CI wait is one wait-any.sh turn of up to ten minutes plus a merge call.
+# Source: riley run p266-1114, whose wave of 5 tickets and 2 CI gates ran out
+# at 40 turns; these defaults give it 20 + 60 + 50 = 130.
+orchestrator_turns:
+  base: 20
+  per_ticket: 12
+  per_ci_gate: 10
+
+# The orchestrator's estimate per turn, in dollars (#216). With no estimate in
+# the plan (orchestrator.estimate_usd) or on the command line (--estimate-usd),
+# wave.sh launch estimates a wave's orchestrator at its --max-turns x this rate,
+# and run-ticket.sh caps it at twice the estimate, so a wave with more turns
+# gets a higher dollar cap. Source: recorded waves cost about $0.30-0.60 at 40
+# turns, at most $0.015 a turn; 0.025 leaves headroom and keeps a 40-turn
+# wave's estimate at the old flat $1 (a $2.00 cap), while a 130-turn wave gets
+# $3.25 (a $6.50 cap).
+orchestrator_usd_per_turn: 0.025
+
+# Deferred gates come back for review after this many days.
+deferral_review_days: 30
+
+# Occurrences of a lesson before it is proposed as a guardrail.
+evidence_threshold: 3
+
+# Nudge towards a hands-on ticket after this many runs without one.
+hands_on_nudge_runs: 5
+
+# Named path sets that gates and guardrails can apply to. A ticket belongs to
+# every area its files touch; the strictest setting wins. None by default.
+# Example:
+#   areas:
+#     billing:
+#       paths: [src/billing/, db/migrations/]
+#       gates: [risk]
+areas: {}
+
+# owner/name of the team guardrails repo, or empty for none.
+team_guardrails_repo:
+
+# Multipliers on history-based estimates, keyed by model id; "all" applies to
+# every model without its own key. None by default (1).
+# Example:
+#   estimate_multipliers:
+#     all: 1.1
+#     claude-opus-5-5: 1.3
+estimate_multipliers: {}
+
+# Minimum estimate per ticket, in dollars, keyed by model id; "all" covers a
+# model without its own key. The plan step raises a smaller estimate to its
+# model's minimum before deriving caps (a worker's budget cap is twice the
+# estimate), so a tiny ticket's fixed overhead (skill loading, tdd, a two-axis
+# review) still fits under the cap. Source of the defaults: #54 (a $0.10
+# estimate, a $0.20 cap, about $0.30 real cost on Sonnet, both attempts
+# failed). Sonnet is that $0.30 plus margin, rounded up to $0.50; the others
+# scale by their price ratio to Sonnet (Opus 2x, Fable 4x), and Haiku holds at
+# $0.10 because the overhead is a fixed number of turns, not price-bound. Keep
+# a key per model in references/model-prices.json. The retro's calibration
+# lessons may change these, like the multipliers.
+minimum_estimates:
+  claude-fable-5-2: 2.00
+  claude-opus-5-5: 1.00
+  claude-sonnet-5-5: 0.50
+  claude-haiku-5-5: 0.10
+  all: 0.50
+
+# Extra phrases that make an agent ticket's criterion read as needing a person,
+# on top of the list in references/human-checks.md (such as "in game"). The
+# plan step flags such a criterion and won't approve the plan until it is
+# split into a Human check or overridden. None by default.
+# Example:
+#   human_check_phrases: [in the editor, on the console]
+human_check_phrases: []
+
+# The project's board (#146): the GitHub Project every issue the plugin opens
+# that outlives the run goes on (plan issues, findings, Human checks, rework
+# and split tickets; never gates or worker questions). owner and number name
+# the project (github.com/users/<owner>/projects/<number>); fields_at_filing
+# are the fields whoever files an issue sets, each copied from the ticket the
+# issue came from (a worker may name a finding's own). The plugin never sets
+# Priority or Status. Project setup learns it from docs/agents/issue-tracker.md.
+# Empty, the default: nothing goes on a board.
+# Example:
+#   tracker:
+#     board:
+#       owner: arathianevasion
+#       number: 1
+#       fields_at_filing: [Area]
+# The rules: references/tracker-board.md.
+tracker:
+  board: {}
+
+# Whether runs live on an always-on host.
+host_configured: false
+
+# The merge gate on CI (#139). A machine whose merge_gate (host.json in the
+# individual home) resolves to ci runs no suite after a merge: it pushes the
+# merge commit to a throwaway ci/* branch and dispatches this workflow there.
+# workflow is its file name under .github/workflows (project setup records it
+# and refuses one without a workflow_dispatch trigger); none means a CI
+# machine can't merge for this project. With no conclusion after
+# timeout_minutes, the run parks (reason ci) until the Artisan clears it.
+# worker_inputs (#194) are the workflow inputs a worker's run on its own
+# branch passes (gh workflow run -f key=value), for a project whose runs
+# should leave jobs out when a worker runs them. Empty, the default, means a
+# worker's run is the gate's own run, so the merge gate can reuse a green one
+# whose tree it would test again; set, the merge gate never reuses it.
+# Example (leave the macOS jobs out of a worker's run):
+#   ci_gate:
+#     worker_inputs:
+#       macos: false
+ci_gate:
+  workflow:
+  timeout_minutes: 30
+  worker_inputs: {}
+
+# The merge gate's time limit, in minutes (#200): how long one merge gate
+# may take. The plan step says so in one line when the expected CI minutes
+# per merge are over it, and the retro when the run's median gate was; it
+# proposes a ticket to bring the gate back under. Nothing refuses, blocks or
+# fails over it. Source: the Artisan's ruling, 2026-11-14 (#185 was deferred
+# until "CI wall time back above 6 minutes").
+merge_gate_minutes_limit: 6
+
+# The release skip (#168). On the merge gate on CI, a merge whose changes since
+# the newest green run of the gate workflow (on a commit the merge descends
+# from) are all in this list is recorded green without dispatching CI; the
+# record names that run. Shell globs, where * crosses /; read in order, the
+# last pattern to match a path decides, and a leading ! means "never skip on
+# this". Empty by default: every merge runs CI. Never skips an ordinary
+# ticket in practice, because a ticket changes scripts, tests or skills.
+# Example (a plugin's release: version files and the changelog). Put the
+# plugin's own files after "!plugins/*", or that pattern denies them:
+#   merge_gate_skip_paths:
+#     - "*.md"
+#     - "!plugins/*"
+#     - plugins/my-plugin/CHANGELOG.md
+#     - plugins/my-plugin/.claude-plugin/plugin.json
+#     - .claude-plugin/marketplace.json
+merge_gate_skip_paths: []
+
+# A shell command run once in every new worker, verifier, hands-on and
+# end-gate worktree, with the worktree as its working directory and
+# ARTISAN_MAIN set to the main checkout, so the worktree has its dependencies
+# (a worktree is a bare checkout; node_modules is not in git). If it fails the
+# attempt fails with the reason "setup" and the command's stderr tail, not a red
+# test. Empty means nothing runs. Setup offers a default for a Node project.
+# Examples:
+#   worktree_setup: npm ci --prefer-offline
+#   worktree_setup: ln -s "$ARTISAN_MAIN/node_modules" node_modules
+worktree_setup:
+
+# The longest worktree_setup may run, in seconds (#181). A command still
+# running then (a hung npm ci) has its whole process group killed, and the
+# attempt fails with the reason "setup", "setup timeout after <n>s" and its
+# stderr tail.
+worktree_setup_timeout: 900
+
+# Runtime folders in the main checkout that sessions may write (#191). The
+# main-checkout guard (guard/protect.sh main-edit) refuses Edit and Write in
+# the main checkout unless the path is git-ignored or under one of these
+# directories: paths relative to the repo root, each ending in /. Compared
+# after resolving .. and symlinks, so a path that only names a listed folder
+# on its way out of it is still refused. For runtime files only (result
+# files, logs), never source: anything written here skips the worktree, the
+# review and the merge gate. Empty means none.
+# Example (a folder kept untracked but not ignored, so /move-session carries it):
+#   main_checkout_runtime: [.claude/orchestrator/]
+main_checkout_runtime: []
