@@ -1,7 +1,8 @@
-import type { Message } from "../src/contract";
+import type { ClientId, Message } from "../src/contract";
+import { sendClientReply } from "./actions";
 
 /** The Client's phone: the Messages view of their Thread. Empty until someone texts. */
-export function PhoneSimulator({ messages }: { messages: Message[] }) {
+export function PhoneSimulator({ clientId, messages }: { clientId: ClientId | null; messages: Message[] }) {
   return (
     <section className="phone" aria-label="Client phone simulator">
       <div className="phone-screen">
@@ -17,6 +18,13 @@ export function PhoneSimulator({ messages }: { messages: Message[] }) {
             ))
           )}
         </div>
+        {clientId && (
+          <form action={sendClientReply} className="phone-compose">
+            <input type="hidden" name="clientId" value={clientId} />
+            <input name="text" aria-label="Text message" placeholder="Text message" autoComplete="off" required />
+            <button type="submit">Send</button>
+          </form>
+        )}
       </div>
     </section>
   );
