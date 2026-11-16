@@ -42,6 +42,12 @@ describe("extractFields", () => {
     expect(m.calls[0]).toMatchObject({ model: "claude-sonnet-5-5", output_config: { effort: "medium", format: { type: "json_schema" } } });
   });
 
+  it("sends the fallback beta on the call, which sends fallbacks", async () => {
+    const m = model(JSON.stringify(FIELDS));
+    await extractFields(m.client, PNG);
+    expect(m.calls[0]).toMatchObject({ fallbacks: "default", betas: ["server-side-fallback-2026-07-01"] });
+  });
+
   it("sends the document inline, labeled untrusted data", async () => {
     const m = model(JSON.stringify(FIELDS));
     await extractFields(m.client, PNG);

@@ -56,6 +56,12 @@ describe("runAssistant on dmi.detected", () => {
     expect(model.calls[0].tools.map((t) => ("name" in t ? t.name : ""))).toEqual(["check_consent", "create_portal_link", "send_text"]);
   });
 
+  it("sends the fallback beta on the Tool Runner call, which sends fallbacks", async () => {
+    const model = scriptedModel();
+    await runAssistant({ name: "dmi.detected", clientId: ROSA, dmiId: "dmi-01" }, { store, now: () => NOW, model: model.client });
+    expect(model.calls[0]).toMatchObject({ fallbacks: "default", betas: ["server-side-fallback-2026-07-01"] });
+  });
+
   it("sends Rosa the first text: the AI, the Agent, the DMI, the due date, the link and STOP", async () => {
     const model = scriptedModel();
     await runAssistant({ name: "dmi.detected", clientId: ROSA, dmiId: "dmi-01" }, { store, now: () => NOW, model: model.client });
@@ -292,7 +298,7 @@ describe("runAssistant on document.uploaded", () => {
     expect(doc).toMatchObject({ documentType: "pay stub", precheck: { result: "sufficient" }, submission: "submitted" });
     expect(store.list("dmis").find((d) => d.id === "dmi-01")!.status).toBe("documents_submitted");
     expect(store.list("messages").filter((m) => m.clientId === ROSA && m.id !== "msg-first").map((m) => m.text)).toEqual([
-      "Got it. I sent your pay stub to the Marketplace. I'll text you when they're done.",
+      "Got it. I sent your pay stub to the Marketplace. They make the final decision, and I'll text you when they're done.",
     ]);
     expect(store.list("notifications").filter((n) => n.clientId === ROSA).map((n) => n.event)).toEqual(["documents_submitted"]);
   });

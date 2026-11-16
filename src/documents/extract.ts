@@ -3,6 +3,8 @@ import { z } from "zod";
 
 /** The vision model that reads Documents: the same model as the Assistant, in a separate call. */
 export const EXTRACTION_MODEL = "claude-sonnet-5-5";
+/** Beta header the server-side `fallbacks` parameter needs; send it on every call that sends `fallbacks`. */
+export const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 /** How often a pay stub's pay recurs; used to annualize it (check 6). */
 export const PAY_FREQUENCIES = ["weekly", "biweekly", "semimonthly", "monthly"] as const;
@@ -67,6 +69,7 @@ export async function extractFields(model: ExtractionClient, file: InlineFile): 
     max_tokens: 1024,
     output_config: { effort: "medium", format: { type: "json_schema", schema: z.toJSONSchema(extractedFieldsSchema) } },
     fallbacks: "default",
+    betas: [FALLBACK_BETA],
     system: SYSTEM,
     messages: [
       {

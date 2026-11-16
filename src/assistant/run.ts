@@ -2,7 +2,7 @@ import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaToolRunnerParams } from "@anthropic-ai/sdk/resources/beta/messages";
 import { z } from "zod";
 import type { ClientId, DomainEvent, ToolName } from "../contract";
-import { extractFields, type ExtractionClient } from "../documents/extract";
+import { extractFields, FALLBACK_BETA, type ExtractionClient } from "../documents/extract";
 import type { Store } from "../store/store";
 import { assistantTextsAbout, firstText, PORTAL_LINK_SLOT } from "./firstText";
 import { QUIET_DAYS_FOR_DISCLOSURE, quietDays, replyTexts, SSN_MASK } from "./replies";
@@ -35,7 +35,7 @@ const SYSTEM = [
 /** The text a Client gets once their Document is with the Marketplace (variant D, verbatim for a pay stub). */
 export function confirmationText(documentType: string): string {
   const what = documentType === "pay stub" ? "pay stub" : "document";
-  return `Got it. I sent your ${what} to the Marketplace. I'll text you when they're done.`;
+  return `Got it. I sent your ${what} to the Marketplace. They make the final decision, and I'll text you when they're done.`;
 }
 
 /**
@@ -101,6 +101,7 @@ async function runModel(clientId: ClientId, prompt: string, deps: RunDeps, toolN
     max_iterations: 6,
     output_config: { effort: "low" },
     fallbacks: "default",
+    betas: [FALLBACK_BETA],
     system: SYSTEM,
     tools: toolNames.map((name) => {
       const tool = available.find((t) => t.name === name);
