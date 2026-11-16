@@ -1,13 +1,21 @@
-import type { DmiType } from "../src/contract";
+import type { DmiType, NotificationEvent } from "../src/contract";
 import { toIsoDate } from "../src/dates";
 import { rankByDeadline } from "../src/queue/rank";
 import { demoStore } from "../src/store/demo";
 import Link from "next/link";
 import { assistantTextsAbout } from "../src/assistant/firstText";
+import { uploadPageState } from "../src/portal/uploadPage";
 import { openDmi, resetDemo } from "./actions";
 import { PhoneSimulator } from "./PhoneSimulator";
 
 export const dynamic = "force-dynamic";
+
+const NOTIFICATION_LABEL: Record<NotificationEvent, string> = {
+  opted_out: "Opted out",
+  consent_rescinded: "Consent rescinded",
+  documents_submitted: "Documents submitted to the Marketplace",
+  dmi_resolved: "DMI resolved",
+};
 
 const DMI_LABEL: Record<DmiType, string> = {
   income: "Income",
@@ -31,13 +39,16 @@ function timeLabel(at: string): string {
   return new Date(at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-export default async function AgentView({ searchParams }: { searchParams: Promise<{ client?: string }> }) {
+export default async function AgentView({ searchParams }: { searchParams: Promise<{ client?: string; portal?: string }> }) {
   const store = demoStore();
   const rows = rankByDeadline(store.list("clients"), store.list("dmis"), toIsoDate(new Date()));
-  const selectedId = (await searchParams).client ?? null;
+  const params = await searchParams;
+  const selectedId = params.client ?? null;
+  const browser = params.portal ? { token: params.portal, state: uploadPageState(store, params.portal, new Date()) } : null;
   const selected = store.list("clients").find((c) => c.id === selectedId) ?? null;
   const thread = selected ? store.list("messages").filter((m) => m.clientId === selected.id) : [];
   const actionLog = selected ? store.list("actionLog").filter((e) => e.clientId === selected.id) : [];
+  const notifications = selected ? store.list("notifications").filter((n) => n.clientId === selected.id) : [];
   const openDmiToText = selected
     ? store.list("dmis").find((d) => d.clientId === selected.id && d.status === "open" && assistantTextsAbout(d.type))
     : undefined;
@@ -66,7 +77,10 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
               <Link className="name" href={`/?client=${row.clientId}`} aria-current={row.clientId === selectedId ? "true" : undefined}>
                 {row.name}
               </Link>
-              <span>{DMI_LABEL[row.dmiType]}</span>
+              <span>
+                {DMI_LABEL[row.dmiType]}
+                {row.dmiStatus === "documents_submitted" && <span className="chip"> Submitted</span>}
+              </span>
               <span className="days">
                 {daysLeftLabel(row.daysLeft)}
                 {row.daysLeft !== null && <span className="muted"> · {shortDate(row.deadline)}</span>}
@@ -106,6 +120,19 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
               </ol>
             )}
 
+            <h3>Notifications</h3>
+            {notifications.length === 0 ? (
+              <p className="muted">No notifications.</p>
+            ) : (
+              <ul className="notes">
+                {notifications.map((n) => (
+                  <li key={n.id}>
+                    {NOTIFICATION_LABEL[n.event]} <span className="muted">· {timeLabel(n.at)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
             <h3>Action log</h3>
             {actionLog.length === 0 ? (
               <p className="muted">No actions yet.</p>
@@ -134,7 +161,7 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
           </section>
         )}
 
-        <PhoneSimulator clientId={selected?.id ?? null} messages={thread} />
+        <PhoneSimulator clientId={selected?.id ?? null} messages={thread} browser={selected ? browser : null} />
       </div>
     </main>
   );

@@ -1,4 +1,7 @@
+import { dueDateLabel } from "../assistant/firstText";
 import type { DmiType } from "../contract";
+import type { Store } from "../store/store";
+import { PORTAL_LINK_BASE, uploadSession } from "./portalLink";
 
 /** One document the Client can pick on the upload page. */
 export interface DocumentChoice {
@@ -47,4 +50,25 @@ export function uploadPageCopy(type: DmiType): UploadPageCopy {
   const copy = COPY[type];
   if (!copy) throw new Error(`No upload page for ${type} DMIs`);
   return copy;
+}
+
+/** What the in-phone browser shows for a Portal link: never more than the first name, DMI type and due date. */
+export type UploadPageState =
+  | { kind: "open" | "submitted"; firstName: string; dmiType: DmiType; due: string; copy: UploadPageCopy }
+  | { kind: "expired" };
+
+/** The upload page for a Portal link token, inside its upload session; anything else reads as expired. */
+export function uploadPageState(store: Store, token: string, at: Date): UploadPageState {
+  const session = uploadSession(store, `${PORTAL_LINK_BASE}${token}`, at);
+  if (!session.ok) return { kind: "expired" };
+  const dmi = store.list("dmis").find((d) => d.id === session.link.dmiId);
+  const client = store.list("clients").find((c) => c.id === session.link.clientId);
+  if (!dmi || !client) return { kind: "expired" };
+  return {
+    kind: dmi.status === "documents_submitted" ? "submitted" : "open",
+    firstName: client.firstName,
+    dmiType: dmi.type,
+    due: dueDateLabel(dmi.deadline),
+    copy: uploadPageCopy(dmi.type),
+  };
 }
