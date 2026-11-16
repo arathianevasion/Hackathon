@@ -140,7 +140,10 @@ describe("Assistant tools", () => {
     it("refuses after the Client opted out", async () => {
       expect(await tools.send_text({ clientId: JUNE, text: "Hi June" })).toEqual({ sent: false, reason: "opted_out" });
       expect(thread(JUNE)).toEqual([]);
-      expect(newLogEntries()).toMatchObject([{ tool: "send_text", consentRecordId: null, result: "Refused: opted_out" }]);
+      expect(newLogEntries()).toMatchObject([
+        { tool: "check_consent", consentRecordId: "CR-1030", result: "Allowed: text_outreach" },
+        { tool: "send_text", consentRecordId: null, result: "Refused: opted_out" },
+      ]);
     });
 
     it("refuses a text the outbound filter blocks, and logs why without the text", async () => {
@@ -159,6 +162,15 @@ describe("Assistant tools", () => {
         sent: false,
         reason: "outbound_filter",
       });
+    });
+
+    it("does not let out a Portal link that was already used or has expired", async () => {
+      const used = await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
+      redeemPortalLink(store, used.url, NOW);
+      expect(await tools.send_text({ clientId: ROSA, text: `Upload here: ${used.url}` })).toEqual({ sent: false, reason: "outbound_filter" });
+      const stale = await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
+      now = new Date("2026-11-19T15:00:00Z");
+      expect(await tools.send_text({ clientId: ROSA, text: `Upload here: ${stale.url}` })).toEqual({ sent: false, reason: "outbound_filter" });
     });
   });
 });

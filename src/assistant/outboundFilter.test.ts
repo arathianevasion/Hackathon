@@ -28,6 +28,9 @@ describe("screenOutbound", () => {
     ["thousands separator", "Your application says 42,000 a year."],
     ["k shorthand", "Your application says 42k a year."],
     ["dollars spelled out", "Your application says 42000 dollars."],
+    ["a monthly rate", "Your stub shows 1850 a month."],
+    ["a rate per year", "That is 42000 per year."],
+    ["a slash rate", "That is 1850/mo."],
   ])("blocks an income amount (%s)", (_, text) => {
     expect(screenOutbound(text, issued)).toEqual({ ok: false, blocked: ["income_amount"] });
   });

@@ -43,17 +43,20 @@ export function createTools({ store, now }: ToolDeps): Tools {
     async send_text({ clientId, text }) {
       const client = store.list("clients").find((c) => c.id === clientId);
       if (!client) throw new Error(`No Client ${clientId}`);
+      const consent = await check_consent({ clientId, action: "text_outreach" });
       if (client.optedOutAt !== null) {
         log(clientId, "send_text", null, "Refused: opted_out");
         return { sent: false, reason: "opted_out" };
       }
-      const consent = await check_consent({ clientId, action: "text_outreach" });
       if (!consent.allowed) {
         log(clientId, "send_text", null, `Refused: no_consent (${consent.reason})`);
         return { sent: false, reason: "no_consent" };
       }
-      const issuedLinks = store.list("portalLinks").filter((l) => l.clientId === clientId).map((l) => l.url);
-      const screening = screenOutbound(text, issuedLinks);
+      const openLinks = store
+        .list("portalLinks")
+        .filter((l) => l.clientId === clientId && l.usedAt === null && Date.parse(l.expiresAt) > now().getTime())
+        .map((l) => l.url);
+      const screening = screenOutbound(text, openLinks);
       if (!screening.ok) {
         log(clientId, "send_text", consent.consentRecordId, `Blocked by outbound filter: ${screening.blocked.join(", ")}`);
         return { sent: false, reason: "outbound_filter" };
