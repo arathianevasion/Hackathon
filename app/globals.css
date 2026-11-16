@@ -53,3 +53,5 @@ a.name:hover, a.name[aria-current] { color: var(--royal); }
 .log th, .log td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); }
 .log th { color: var(--muted); font-weight: 600; border-top: 0; }
 @media (min-width: 861px) { .phone { grid-column: 2; grid-row: 1 / span 2; } }
+.phone-compose { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); }
+.phone-compose input { flex: 1; min-width: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 16px; font: inherit; }

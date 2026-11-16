@@ -134,7 +134,7 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
           </section>
         )}
 
-        <PhoneSimulator messages={thread} />
+        <PhoneSimulator clientId={selected?.id ?? null} messages={thread} />
       </div>
     </main>
   );
