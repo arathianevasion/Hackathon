@@ -130,7 +130,7 @@ The Assistant acts only under a checked Consent record, and hands the Agent anyt
 | Citizenship or immigration DMI | DMI resolved |
 | Tax, immigration or legal advice request, or low confidence | Opt-out or consent rescinded (Assistant already stopped) |
 | Document insufficient twice, or still ambiguous after one question | 3 Portal links sent in 24 hours |
-| SSN or name mismatch with the application |  |
+| SSN or name mismatch with the application | Client came back after a silence Escalation (by text or upload) |
 | Suspected fraud or inconsistent documents |  |
 | Client silent through the nudge schedule |  |
 
@@ -147,6 +147,7 @@ An Escalation pauses the Assistant, except one: `client_asked_for_agent`. The Cl
 
 - A Client reply that they have the document ("ready") gets a fresh link and cancels the scheduled nudge.
 - No nudges while an Escalation is open, except `client_asked_for_agent`.
+- **A silence Escalation closes when the Client comes back before the DMI deadline.** If `silence` is the Client's only open pausing Escalation and the deadline has not been reached, a text from the Client (not STOP or START) or an upload closes it as handled, and the Assistant then handles that text or upload as usual. The Agent gets a Notification (no action needed) saying the Client came back by text or by upload and the Escalation is closed. The nudge schedule counts from that text or upload, so a later silence can escalate again. On or after the deadline, or with any other pausing Escalation open, nothing changes: the Escalation stays open, the Assistant stays paused and the upload page says "Your agent will contact you".
 - When the Agent texts in the Thread, the Assistant holds its replies and nudges for that Client until the Agent hands back. If an Escalation is still open then, the Assistant stays paused until the Agent marks it handled.
 - After an opt-out, nobody texts the Client from this number, the Agent included, until the Client replies START.
 - If the Agent says "keep trying": one reminder before each of the Marketplace's 60-day and 30-day warnings.
@@ -192,7 +193,7 @@ The Client never leaves their phone: short texts carry the conversation, and the
 3. The Assistant confirms by text and says when it will check in.
 4. "ready" gets a fresh link and cancels the nudge. Silence follows the nudge schedule, each nudge carrying a fresh link.
 
-**Link states:** an expired link shows "This link has expired. Reply to our text and we'll send you a new one." A paused DMI (a pausing Escalation open) shows "Your agent will contact you" and asks for no upload.
+**Link states:** an expired link shows "This link has expired. Reply to our text and we'll send you a new one." A paused DMI (a pausing Escalation open) shows "Your agent will contact you" and asks for no upload, except when `silence` is the only open Escalation and the DMI deadline has not been reached: then the page is the normal upload form.
 
 In the demo app the phone is a simulator: a Messages view and an in-phone browser, with "Done" returning to Messages.
 

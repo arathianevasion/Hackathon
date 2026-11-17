@@ -1,3 +1,4 @@
+import { closeSilenceOnReturn } from "../assistant/escalations";
 import type { DomainEvent } from "../contract";
 import type { Store } from "../store/store";
 import { uploadSession } from "./portalLink";
@@ -42,5 +43,6 @@ export function receiveUpload(
   });
   const bytes = Buffer.from(upload.bytes);
   store.add("documentFiles", { id, mediaType: upload.mediaType, sizeBytes: bytes.length, base64: bytes.toString("base64") });
+  closeSilenceOnReturn(store, clientId, dmi.deadline, "upload", now());
   return { name: "document.uploaded", clientId, dmiId, documentId: id };
 }

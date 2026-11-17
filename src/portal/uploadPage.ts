@@ -1,4 +1,4 @@
-import { isPaused } from "../assistant/escalations";
+import { isPausedAt } from "../assistant/escalations";
 import { dueDateLabel } from "../assistant/firstText";
 import type { DmiType } from "../contract";
 import { guidanceFor, type Guidance } from "../documents/guidance";
@@ -80,7 +80,7 @@ export function uploadPageState(store: Store, token: string, at: Date): UploadPa
   const client = store.list("clients").find((c) => c.id === link.clientId);
   if (!dmi || !client) return { kind: "expired" };
   const agent = store.agent();
-  if (agent && isPaused(store, client.id)) return { kind: "paused", agentFirstName: agent.firstName };
+  if (agent && isPausedAt(store, client.id, dmi.deadline, at)) return { kind: "paused", agentFirstName: agent.firstName };
   const uploads = store.list("documents").filter((d) => d.dmiId === dmi.id);
   const latest = uploads.at(-1);
   return {

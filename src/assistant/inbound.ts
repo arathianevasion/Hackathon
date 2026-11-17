@@ -1,5 +1,7 @@
 import type { ClientId, DomainEvent } from "../contract";
 import type { Store } from "../store/store";
+import { assistantTextsAbout } from "./firstText";
+import { closeSilenceOnReturn } from "./escalations";
 import { applyOptKeyword, optKeyword } from "./optOut";
 
 /** Nine digits shaped like an SSN, however separated (dashes, dots, spaces) or surrounded; over-masking beats leaking. */
@@ -26,5 +28,13 @@ export function receiveClientText(
   store.add("messages", { id, clientId, sender: "client", sentAt: now().toISOString(), text: maskSsns(typed) });
   const keyword = optKeyword(typed);
   if (keyword) applyOptKeyword(store, clientId, keyword, now());
+  // A Client who comes back before the deadline lifts a silence Escalation; STOP and START change nothing else.
+  else {
+    const dmi = store
+      .list("dmis")
+      .filter((d) => d.clientId === clientId && d.status === "open" && assistantTextsAbout(d.type))
+      .sort((a, b) => a.deadline.localeCompare(b.deadline))[0];
+    if (dmi) closeSilenceOnReturn(store, clientId, dmi.deadline, "text", now());
+  }
   return { name: "client.message", clientId, messageId: id };
 }

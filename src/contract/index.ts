@@ -173,7 +173,10 @@ export type NotificationEvent =
   | "consent_rescinded"
   | "documents_submitted"
   | "dmi_resolved"
-  | "portal_link_limit";
+  | "portal_link_limit"
+  /** The Client texted or uploaded before the DMI deadline, which closed their `silence` Escalation. */
+  | "client_came_back_by_text"
+  | "client_came_back_by_upload";
 
 /** An informational message to the Agent that requires no action. */
 export interface Notification {

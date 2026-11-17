@@ -1,4 +1,5 @@
-import type { ClientId, EscalationId, EscalationTrigger } from "../contract";
+import type { ClientId, EscalationId, EscalationTrigger, IsoDate } from "../contract";
+import { toIsoDate } from "../dates";
 import type { Store } from "../store/store";
 
 /** Refused because the Assistant is paused for the Client: an Escalation is open, or the Agent is in the Thread. */
@@ -47,6 +48,43 @@ export function pausingEscalationOpen(store: Store, clientId: ClientId): boolean
 /** Whether the Assistant is paused for a Client: a pausing Escalation of theirs is open, or the Agent is in the Thread. */
 export function isPaused(store: Store, clientId: ClientId): boolean {
   return pausingEscalationOpen(store, clientId) || agentInThread(store, clientId);
+}
+
+/**
+ * Whether a `silence` Escalation is the only thing pausing the Client and the DMI
+ * deadline has not been reached: then the Client coming back lifts it. On or after
+ * the deadline, or with any other pausing Escalation open, it stays.
+ */
+export function silenceLiftedByReturn(store: Store, clientId: ClientId, deadline: IsoDate, at: Date): boolean {
+  const pausing = store.list("escalations").filter((e) => e.clientId === clientId && e.status === "open" && pausesAssistant(e.trigger));
+  return pausing.length > 0 && pausing.every((e) => e.trigger === "silence") && toIsoDate(at) < deadline;
+}
+
+/** Whether the Assistant is paused for a Client at a moment, counting a silence Escalation the Client can still lift by coming back before `deadline`. */
+export function isPausedAt(store: Store, clientId: ClientId, deadline: IsoDate, at: Date): boolean {
+  return agentInThread(store, clientId) || (pausingEscalationOpen(store, clientId) && !silenceLiftedByReturn(store, clientId, deadline, at));
+}
+
+/**
+ * The Client came back by text or upload. Before the DMI deadline, with silence
+ * the only pausing Escalation open, it closes as handled and the Agent gets one
+ * Notification (no action needed). Returns whether it did.
+ */
+export function closeSilenceOnReturn(store: Store, clientId: ClientId, deadline: IsoDate, by: "text" | "upload", at: Date): boolean {
+  if (!silenceLiftedByReturn(store, clientId, deadline, at)) return false;
+  for (const e of store.list("escalations")) {
+    if (e.clientId === clientId && e.status === "open" && e.trigger === "silence") markEscalationHandled(store, e.id, at);
+  }
+  const agent = store.agent();
+  if (!agent) throw new Error("No Agent");
+  store.add("notifications", {
+    id: `note-${store.list("notifications").length + 1}`,
+    agentId: agent.id,
+    clientId,
+    event: by === "text" ? "client_came_back_by_text" : "client_came_back_by_upload",
+    at: at.toISOString(),
+  });
+  return true;
 }
 
 /**
