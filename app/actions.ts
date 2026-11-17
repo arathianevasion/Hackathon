@@ -2,7 +2,9 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { codeAccepted, SESSION_COOKIE, SESSION_VALUE } from "../src/agentSession";
 import { receiveClientText } from "../src/assistant/inbound";
 import { runAssistant } from "../src/assistant/run";
 import { openUploadSession, PORTAL_LINK_BASE } from "../src/portal/portalLink";
@@ -110,4 +112,16 @@ export async function sendAgentTextAction(formData: FormData) {
 export async function handBack(formData: FormData) {
   handBackToAssistant({ store: demoStore(), now: demoClock().now }, String(formData.get("clientId")));
   revalidatePath("/", "layout");
+}
+
+/** Mocked single sign-on: the demo's one-time code starts the Agent's session. */
+export async function signIn(formData: FormData) {
+  if (!codeAccepted(String(formData.get("code") ?? ""))) redirect("/?signin=wrong");
+  (await cookies()).set(SESSION_COOKIE, SESSION_VALUE, { httpOnly: true, sameSite: "lax", path: "/" });
+  redirect("/");
+}
+
+export async function signOut() {
+  (await cookies()).delete(SESSION_COOKIE);
+  redirect("/");
 }

@@ -10,6 +10,7 @@ import { issuePortalLink, PORTAL_LINK_BASE } from "../src/portal/portalLink";
 const NOW = new Date();
 let store: Store;
 vi.mock("../src/store/demo", () => ({ demoStore: () => store }));
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: "signed-in" }) }) }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("next/navigation", () => ({ redirect: () => {}, useRouter: () => ({ refresh: () => {} }) }));
 
