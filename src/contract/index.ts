@@ -149,7 +149,9 @@ export type EscalationTrigger =
   | "insufficient_twice"
   | "name_or_ssn_mismatch"
   | "suspected_fraud"
-  | "silence";
+  | "silence"
+  /** The Client said yes to having the Agent contact them about a topic unrelated to their DMI; the only trigger that does not pause the Assistant. */
+  | "client_asked_for_agent";
 export type EscalationStatus = "open" | "handled";
 
 /** A handover that requires the Agent to act. */
@@ -171,7 +173,10 @@ export type NotificationEvent =
   | "consent_rescinded"
   | "documents_submitted"
   | "dmi_resolved"
-  | "portal_link_limit";
+  | "portal_link_limit"
+  /** The Client texted or uploaded before the DMI deadline, which closed their `silence` Escalation. */
+  | "client_came_back_by_text"
+  | "client_came_back_by_upload";
 
 /** An informational message to the Agent that requires no action. */
 export interface Notification {

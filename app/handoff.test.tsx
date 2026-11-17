@@ -49,6 +49,20 @@ describe("the handoff card", () => {
     expect(html).toContain("Mark handled");
   });
 
+  it("labels a Client's ask for the Agent about an unrelated topic readably", async () => {
+    const tools = createTools({ store, now: () => new Date(), extract: () => Promise.reject(new Error("none")) });
+    await tools.escalate_to_agent({
+      clientId: MARCUS,
+      trigger: "client_asked_for_agent",
+      summary: "Asks whether his plan covers dental.",
+      clientWords: "Does my plan cover dental?",
+      suggestedNextStep: "Call Marcus about their question, which isn't about their DMI.",
+    });
+    const html = await view(MARCUS);
+    expect(html).toContain("Client asked you to contact them about something other than the DMI");
+    expect(html).not.toContain("client_asked_for_agent");
+  });
+
   it("labels a name or SSN mismatch Escalation readably", async () => {
     const tools = createTools({ store, now: () => new Date(), extract: () => Promise.reject(new Error("none")) });
     await tools.escalate_to_agent({ clientId: MARCUS, trigger: "name_or_ssn_mismatch", summary: "s", clientWords: null, suggestedNextStep: "Call Marcus to confirm whose document it is." });
@@ -112,6 +126,14 @@ describe("the Agent in the Thread", () => {
     expect(html).toContain("The Assistant is holding its replies and nudges for this Client");
     expect(html).toContain("Hand back to the Assistant");
     expect(html).toContain("You&#x27;re in the Thread");
+  });
+
+  it("doesn't say the Assistant stays paused when the only open Escalation is a Client's ask about another topic", async () => {
+    const tools = createTools({ store, now: () => new Date(), extract: () => Promise.reject(new Error("none")) });
+    for (const e of store.list("escalations")) store.update("escalations", { ...e, status: "handled", handledAt: e.raisedAt });
+    await tools.escalate_to_agent({ clientId: MARCUS, trigger: "client_asked_for_agent", summary: "Asks about dental.", clientWords: "Dental?", suggestedNextStep: null });
+    await send(MARCUS, "Hi");
+    expect(await view(MARCUS)).not.toContain("stays paused until you mark it handled");
   });
 
   it("Hand back clears the banner and the chip", async () => {

@@ -1,6 +1,6 @@
 import type { ClientId, Dmi, DmiId, DmiType, Escalation, IsoDateTime, Message } from "../contract";
 import { assistantTextsAbout, dueDateLabel } from "../assistant/firstText";
-import { isPaused, lastHandBackAt } from "../assistant/escalations";
+import { isPaused, lastHandBackAt, pausesAssistant } from "../assistant/escalations";
 import type { Tools } from "../assistant/tools";
 import { finishMarketplaceReviews } from "../marketplace/marketplace";
 import { PortalLinkLimitError } from "../portal/portalLink";
@@ -36,16 +36,18 @@ function nudgeText(firstName: string, type: DmiType, link: string): string {
 
 /**
  * The last contact: the Client's last message, or the first text when they have
- * not replied, or the moment an Escalation was marked handled or the Agent handed
- * the Thread back, whichever is later.
+ * not replied, or the moment an Escalation was closed (handled, or by the Client
+ * coming back) or the Agent handed the Thread back, whichever is later.
  */
 function lastContact(thread: Message[], escalations: Escalation[], handedBack: number | null): number | null {
   const fromClient = thread.filter((m) => m.sender === "client").at(-1);
   const first = thread.find((m) => m.sender === "assistant");
   const base = fromClient ?? first;
-  if (!base) return null;
-  const handed = escalations.flatMap((e) => (e.handledAt ? [Date.parse(e.handledAt)] : []));
-  return Math.max(Date.parse(base.sentAt), ...handed, handedBack ?? 0);
+  // Handling an Escalation that never paused the Assistant changes nothing about its schedule.
+  const handed = escalations.flatMap((e) => (e.handledAt && pausesAssistant(e.trigger) ? [Date.parse(e.handledAt)] : []));
+  // A Client who came back by upload has no message, only the closed silence Escalation to count from.
+  const times = [...(base ? [Date.parse(base.sentAt)] : []), ...handed, ...(handedBack === null ? [] : [handedBack])];
+  return times.length ? Math.max(...times) : null;
 }
 
 /** The DMI the Assistant is working for a Client, their last contact and the cadence it puts them on. */

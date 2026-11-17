@@ -29,14 +29,29 @@ function whyText(type: DmiType, deadline: IsoDate): string {
     : `It's a routine check. The Marketplace couldn't match your income with its records. Without proof by ${by}, your premium help could stop. The link explains more: ${PORTAL_LINK_SLOT}`;
 }
 
+/** What the texts mean, per DMI type (Andrew's wording, 17 Nov 2026, #92): the answer to "What does this mean?", not an Escalation. */
+function explainText(type: DmiType, deadline: IsoDate): string {
+  const by = dueDateLabel(deadline);
+  const tail = `The link shows what to send and lets you take a photo: ${PORTAL_LINK_SLOT}`;
+  return type === "ssn"
+    ? `It means the Marketplace needs one document to confirm your Social Security number. The number on your application didn't match Social Security's records. That's common, and you're not in trouble. A photo of your Social Security card works, and the page lists other documents. Without it by ${by}, your coverage could change. ${tail}`
+    : `It means the Marketplace needs one document to confirm your income. The income on your application didn't match their records, like IRS data. That's common, and you're not in trouble. A recent pay stub, a letter from your employer or your 2025 tax return works. Without it by ${by}, your premium help could stop. ${tail}`;
+}
+
 /** The only wording the Assistant may send to a Client's reply; it picks one, never writes its own. */
 export interface ReplyTexts {
   why: string;
+  /** For confusion about the texts or the DMI. */
+  explain: string;
   disclosure: string;
   ssn: string;
   /** The promise after "later"; null when no nudge is scheduled, so there is nothing to promise. */
   later: string | null;
   ready: string;
+  /** For a topic unrelated to the DMI: the Assistant can't help, and offers the Agent. */
+  unrelated: string;
+  /** After the Client says yes to that offer and the Escalation is raised; carries a Portal link. */
+  agentWillContact: string;
 }
 
 /** The replies on offer; after `quiet` days of silence each opens with the AI disclosure. */
@@ -45,10 +60,13 @@ export function replyTexts(input: { agentFirstName: string; dmiType: DmiType; de
   const open = (text: string) => (input.quiet ? `${ai} ${text}` : text);
   return {
     why: open(whyText(input.dmiType, input.deadline)),
+    explain: open(explainText(input.dmiType, input.deadline)),
     disclosure: ai,
     ssn: open("Please don't send your Social Security number by text. The Marketplace needs a document, and the link shows which ones work."),
     later: input.checkInOn === null ? null : open(laterText(input.checkInOn)),
     ready: open(READY_TEXT),
+    unrelated: open(unrelatedText(input.agentFirstName)),
+    agentWillContact: open(agentWillContactText(input.agentFirstName)),
   };
 }
 
@@ -70,4 +88,14 @@ export const READY_TEXT = `Great. Here's a new link, good for 3 days: ${PORTAL_L
  */
 export function applicationChangeText(agentFirstName: string): string {
   return `It might. ${agentFirstName}, your licensed agent, needs to update your application, so I've passed this to him and he'll contact you. Please don't upload anything yet.`;
+}
+
+/** The reply to a topic unrelated to the DMI (#85, Andrew's wording): no answer, and an offer to have the Agent get in touch. */
+export function unrelatedText(agentFirstName: string): string {
+  return `Thanks for asking! I can only help with the document the Marketplace asked for, so I can't answer that here. Want ${agentFirstName}, your licensed agent, to contact you about it? Just reply yes and I'll pass it on.`;
+}
+
+/** The confirmation once the Client takes up that offer (#85, Andrew's wording); the link goes where the slot is. */
+export function agentWillContactText(agentFirstName: string): string {
+  return `Done. ${agentFirstName} will contact you about it. Your document for the Marketplace is still due, and your link still works: ${PORTAL_LINK_SLOT}`;
 }
