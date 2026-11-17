@@ -6,7 +6,8 @@ import Link from "next/link";
 import { assistantTextsAbout } from "../src/assistant/firstText";
 import { uploadPageState } from "../src/portal/uploadPage";
 import { demoClock } from "../src/cadence/demo";
-import { fastForwardDemo, markHandled, openDmi, resetDemo } from "./actions";
+import { agentInThread } from "../src/assistant/escalations";
+import { fastForwardDemo, handBack, markHandled, openDmi, resetDemo, sendAgentTextAction } from "./actions";
 import { AutoRefresh } from "./AutoRefresh";
 import { PhoneSimulator } from "./PhoneSimulator";
 
@@ -37,6 +38,12 @@ const DMI_LABEL: Record<DmiType, string> = {
   immigration: "Immigration",
 };
 
+const NOT_SENT_LABEL: Record<string, string> = {
+  opted_out: "Not sent: the Client opted out of texts.",
+  no_consent: "Not sent: there is no Consent record covering texts.",
+  outbound_filter: "Not sent: it has an SSN-like number, an income amount or a link the outbound filter blocks.",
+};
+
 function daysLeftLabel(days: number | null): string {
   if (days === null) return "Resolved";
   if (days === 0) return "Due today";
@@ -58,12 +65,13 @@ function timeLabel(at: string): string {
   return new Date(at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-export default async function AgentView({ searchParams }: { searchParams: Promise<{ client?: string; portal?: string; phone?: string }> }) {
+export default async function AgentView({ searchParams }: { searchParams: Promise<{ client?: string; portal?: string; phone?: string; notsent?: string }> }) {
   const store = demoStore();
   const rows = rankByDeadline(store.list("clients"), store.list("dmis"), toIsoDate(demoClock().now()), store.list("escalations"));
   const params = await searchParams;
   const selectedId = params.client ?? null;
   const browser = params.portal ? { token: params.portal, state: uploadPageState(store, params.portal, demoClock().now()) } : null;
+  const inThread = (id: string) => agentInThread(store, id);
   const showPhone = params.phone !== "off";
   const selected = store.list("clients").find((c) => c.id === selectedId) ?? null;
   const thread = selected ? store.list("messages").filter((m) => m.clientId === selected.id) : [];
@@ -116,6 +124,7 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
                 {DMI_LABEL[row.dmiType]}
                 {row.dmiStatus === "documents_submitted" && <span className="chip info"> Submitted</span>}
                 {row.escalated && <span className="chip crit"> Escalation</span>}
+                {inThread(row.clientId) && <span className="chip info"> You&rsquo;re in the Thread</span>}
               </span>
               <span className={`days${daysTone(row.daysLeft)}`}>
                 {daysLeftLabel(row.daysLeft)}
@@ -154,9 +163,23 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
                 <form action={markHandled}>
                   <input type="hidden" name="escalationId" value={e.id} />
                   <button type="submit" className="primary">Mark handled</button>
+                  {selected.optedOutAt === null && <a className="button" href="#message-box">Reply in Thread</a>}
                 </form>
               </div>
             ))}
+
+            {inThread(selected.id) && (
+              <div className="banner" aria-label="You're in the Thread">
+                <span>
+                  <b>You&rsquo;re in the Thread.</b> The Assistant is holding its replies and nudges for this Client.
+                  {openEscalations.length > 0 && " An Escalation is still open, so it stays paused until you mark it handled."}
+                </span>
+                <form action={handBack}>
+                  <input type="hidden" name="clientId" value={selected.id} />
+                  <button type="submit">Hand back to the Assistant</button>
+                </form>
+              </div>
+            )}
 
             <h3>Thread</h3>
             {thread.length === 0 ? (
@@ -172,6 +195,22 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
                   </li>
                 ))}
               </ol>
+            )}
+
+            {selected.optedOutAt === null ? (
+              <form action={sendAgentTextAction} className="message-box" id="message-box">
+                <input type="hidden" name="clientId" value={selected.id} />
+                <label>
+                  <span className="label">Text {selected.firstName} as {store.agent()?.firstName}</span>
+                  <textarea name="text" rows={2} required placeholder={`Sends from the same number, starting "${store.agent()?.firstName} here:"`} />
+                </label>
+                {params.notsent && NOT_SENT_LABEL[params.notsent] && <p className="muted" role="alert">{NOT_SENT_LABEL[params.notsent]}</p>}
+                <button type="submit" className="primary">Send text</button>
+              </form>
+            ) : (
+              <p className="muted">
+                {selected.firstName} opted out of texts. Call {selected.phone} instead.
+              </p>
             )}
 
             <h3>Notifications</h3>

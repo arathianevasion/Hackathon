@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createClock } from "../cadence/clock";
 import { runDueCadence } from "../cadence/engine";
 import { openStore, type Store } from "../store/store";
 import { handBackToAssistant, sendAgentText } from "./agentThread";
@@ -39,7 +40,7 @@ describe("an Agent text in the Thread", () => {
 
   it("sends no nudge for that Client while the Agent is in the Thread", async () => {
     // Marcus has an open DMI and a first text; a week of silence would nudge him.
-    const clock = { now: () => new Date("2026-12-20T15:00:00Z") };
+    const clock = createClock(new Date("2026-12-20T15:00:00Z"));
     store.add("messages", { id: "msg-first", clientId: MARCUS, sender: "assistant", sentAt: NOW.toISOString(), text: "first text" });
     await sendAgentText(deps(NOW), MARCUS, "Hello");
     const fired = await runDueCadence({ store, clock, tools: tools(clock.now()) });
@@ -80,7 +81,7 @@ describe("Hand back to the Assistant", () => {
   it("starts the nudge schedule afresh from the hand back", async () => {
     await sendAgentText(deps(NOW), MARCUS, "Hello");
     handBackToAssistant(deps(LATER), MARCUS);
-    const nextDay = { now: () => new Date("2026-11-17T16:00:00Z") };
+    const nextDay = createClock(new Date("2026-11-17T16:00:00Z"));
     const fired = await runDueCadence({ store, clock: nextDay, tools: tools(nextDay.now()) });
     expect(fired.filter((f) => f.clientId === MARCUS && f.step === "escalate")).toEqual([]);
   });
