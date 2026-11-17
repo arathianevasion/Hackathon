@@ -147,6 +147,7 @@ export type EscalationTrigger =
   | "citizenship_or_immigration_dmi"
   | "advice_or_low_confidence"
   | "insufficient_twice"
+  | "name_or_ssn_mismatch"
   | "suspected_fraud"
   | "silence";
 export type EscalationStatus = "open" | "handled";
