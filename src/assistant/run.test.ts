@@ -1,3 +1,4 @@
+import { sendAgentText } from "./agentThread";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExtractedFields } from "../documents/extract";
 import { issuePortalLink, openUploadSession } from "../portal/portalLink";
@@ -582,6 +583,13 @@ describe("runAssistant on document.uploaded", () => {
       store.update("clients", { ...rosa, optedOutAt: NOW.toISOString() });
       await rosaUploads(scriptedUploadModel(MISMATCH));
       expect(afterFirst()).toEqual([]);
+    });
+
+    it("holds the text while an Agent is in the Thread", async () => {
+      await sendAgentText({ store, now: () => NOW }, ROSA, "Hi, I'll sort this out.");
+      const before = afterFirst().length;
+      await rosaUploads(scriptedUploadModel(MISMATCH));
+      expect(afterFirst()).toHaveLength(before);
     });
 
     it("escalates name_or_ssn_mismatch on the third failed upload, with no text", async () => {

@@ -71,6 +71,34 @@ describe("uploadPageState", () => {
     });
   });
 
+  it.each([
+    ["cropped", ["The document is cropped"]],
+    ["illegible", ["The document is not legible"]],
+    ["a missing field", ["Pay is missing"]],
+    ["the wrong document", ["Not a document that works for this DMI"]],
+    ["a name mismatch", ["The name does not match the Client"]],
+    ["an SSN mismatch", ["The SSN ending 1234 does not match the application"]],
+  ])("shows visible fixes after an upload rejected as %s", (_kind, reasons) => {
+    const token = opened();
+    store.add("documents", {
+      id: "d1", dmiId: "dmi-01", documentType: "pay stub", fileName: "a.png", uploadedAt: NOW.toISOString(), submission: "not_submitted", watermark: "SPECIMEN",
+      precheck: { result: "insufficient", reasons },
+    });
+    const state = uploadPageState(store, token, NOW);
+    expect(state).toMatchObject({ kind: "open", fixes: { fixes: expect.arrayContaining([expect.any(String)]) } });
+    expect(feedbackKey(state)).not.toBeNull();
+  });
+
+  it("shows the escalated page once an Escalation is open", async () => {
+    const token = opened();
+    await createTools({ store, now: () => NOW, extract: () => Promise.reject(new Error("none")) }).escalate_to_agent({
+      clientId: ROSA, trigger: "name_or_ssn_mismatch", summary: "s", clientWords: null, suggestedNextStep: "n",
+    });
+    const state = uploadPageState(store, token, NOW);
+    expect(state.kind).toBe("paused");
+    expect(feedbackKey(state)).toBe("paused");
+  });
+
   it("shows no fixes once a later upload is waiting for its check", () => {
     const token = opened();
     const base = { dmiId: "dmi-01", documentType: "pay stub", fileName: "a.png", uploadedAt: NOW.toISOString(), submission: "not_submitted" as const, watermark: "SPECIMEN" as const };
