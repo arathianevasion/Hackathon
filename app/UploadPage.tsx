@@ -25,6 +25,18 @@ function SpecimenStub() {
  * Variant D's upload page in the in-phone browser: first name, DMI type and
  * due date only. Picking a file uploads it at once; the page never shows it back.
  */
+export function CheckingPanel() {
+  return (
+    <div className="status work" role="status">
+      <span className="t">
+        <span className="spinner" aria-hidden="true"></span>
+        Checking your document…
+      </span>
+      <span>This takes a few seconds. You&apos;ll get a text with the result.</span>
+    </div>
+  );
+}
+
 export function UploadPage({ token, state }: { token: string; state: UploadPageState }) {
   const form = useRef<HTMLFormElement>(null);
   const [choice, setChoice] = useState(state.kind === "expired" || state.kind === "paused" ? "" : state.copy.choices[0].label);
@@ -150,10 +162,7 @@ export function UploadPage({ token, state }: { token: string; state: UploadPageS
         <span className="big">Upload {copy.choices[0].label.toLowerCase()}</span>
         <span className="cap">Photo, JPG, PNG or PDF</span>
         {sending ? (
-          <div className="status work" role="status">
-            <span className="t">Checking your document…</span>
-            <span>This takes a few seconds. You&apos;ll get a text with the result.</span>
-          </div>
+          <CheckingPanel />
         ) : (
           <>
             <label className="button primary">
