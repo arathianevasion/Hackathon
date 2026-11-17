@@ -98,7 +98,12 @@ export interface Document {
   documentType: string;
   fileName: string;
   uploadedAt: IsoDateTime;
-  precheck: { result: PrecheckResult; reasons: string[] };
+  precheck: {
+    result: PrecheckResult;
+    reasons: string[];
+    /** What was read off the Document, kept only for an ambiguous result so the Escalation can show it; SSN masked to the last 4. */
+    extracted?: string;
+  };
   submission: SubmissionStatus;
   /** Every Document in the POC is synthetic and visibly marked. */
   watermark: "SPECIMEN";

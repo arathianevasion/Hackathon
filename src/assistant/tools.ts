@@ -1,5 +1,5 @@
 import type { AssistantTools, ClientId, ConsentCheck, ConsentRecordId, SendTextResult, ToolName } from "../contract";
-import { judgeDocument } from "../documents/checks";
+import { describeExtracted, judgeDocument } from "../documents/checks";
 import type { ExtractedFields, InlineFile } from "../documents/extract";
 import { dmiRules } from "../documents/rules";
 import { applicationOf, submitToMarketplace } from "../marketplace/marketplace";
@@ -182,7 +182,11 @@ function build({ store, now, extract }: ToolDeps) {
         application: applicationOf(store, client.id),
         today: toIsoDate(now()),
       });
-      const precheck = { result: judged.result, reasons: judged.reasons.map(maskSsns) };
+      const precheck = {
+        result: judged.result,
+        reasons: judged.reasons.map(maskSsns),
+        ...(judged.result === "ambiguous" ? { extracted: describeExtracted(fields) } : {}),
+      };
       const documentType = dmiRules(dmi.type).acceptableDocuments.find((d) => d.toLowerCase() === fields.documentType?.trim().toLowerCase());
       store.update("documents", { ...doc, documentType: documentType ?? doc.documentType, precheck });
       const label = precheck.result[0].toUpperCase() + precheck.result.slice(1);

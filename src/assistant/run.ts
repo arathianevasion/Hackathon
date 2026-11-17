@@ -7,7 +7,7 @@ import { extractFields, FALLBACK_BETA, type ExtractionClient } from "../document
 import type { Store } from "../store/store";
 import { assistantTextsAbout, firstText, PORTAL_LINK_SLOT } from "./firstText";
 import { isPaused } from "./escalations";
-import { applicationChangeText, QUIET_DAYS_FOR_DISCLOSURE, quietDays, replyTexts, SSN_MASK } from "./replies";
+import { applicationChangeText, CLARIFYING_QUESTION, QUIET_DAYS_FOR_DISCLOSURE, quietDays, replyTexts, SSN_MASK } from "./replies";
 import { createTools } from "./tools";
 import { nextNudgeAt } from "../cadence/engine";
 import { localDate, QUIET_HOURS } from "../cadence/schedule";
@@ -90,7 +90,8 @@ async function openDmi(event: Extract<DomainEvent, { name: "dmi.detected" }>, de
  * A Client uploaded a Document: the Assistant runs the check, and only a
  * sufficient result goes on to the mocked Marketplace and a confirmation text.
  * An insufficient one gets every fix texted, or an Escalation on the second
- * (`followUpInsufficient`). Ambiguous uploads stop here for now (#19).
+ * (`followUpInsufficient`). An ambiguous one gets one question, then an Escalation
+ * (`followUpAmbiguous`).
  */
 async function checkUpload(event: Extract<DomainEvent, { name: "document.uploaded" }>, deps: RunDeps): Promise<void> {
   const doc = deps.store.list("documents").find((d) => d.id === event.documentId && d.dmiId === event.dmiId);
@@ -108,6 +109,35 @@ async function checkUpload(event: Extract<DomainEvent, { name: "document.uploade
   ].join("\n");
   await runModel(event.clientId, prompt, deps, ["check_consent", "precheck_document", "submit_documents", "send_text"]);
   await followUpInsufficient(event, deps);
+  await followUpAmbiguous(event, deps);
+}
+
+/**
+ * What follows an ambiguous result (income only), in code: the first ambiguous
+ * Document for a DMI gets one clarifying question in fixed wording; if a later
+ * one is still ambiguous, the Escalation carries the extracted fields (SSN
+ * masked) and nothing more goes to the Client.
+ */
+async function followUpAmbiguous(event: Extract<DomainEvent, { name: "document.uploaded" }>, { store, now }: RunDeps): Promise<void> {
+  const doc = store.list("documents").find((d) => d.id === event.documentId);
+  if (doc?.precheck.result !== "ambiguous") return;
+  if (store.list("escalations").some((e) => e.clientId === event.clientId && e.status === "open")) return;
+  const tools = toolsFor({ store, now });
+  const ambiguous = store.list("documents").filter((d) => d.dmiId === event.dmiId && d.precheck.result === "ambiguous");
+  if (ambiguous.length < 2) {
+    await tools.send_text({ clientId: event.clientId, text: CLARIFYING_QUESTION });
+    return;
+  }
+  const client = store.list("clients").find((c) => c.id === event.clientId);
+  const dmi = store.list("dmis").find((d) => d.id === event.dmiId);
+  if (!client || !dmi) throw new Error(`No DMI ${event.dmiId} for Client ${event.clientId}`);
+  await tools.escalate_to_agent({
+    clientId: event.clientId,
+    trigger: "insufficient_twice",
+    summary: `The income on the ${dmi.type} DMI's Document is still ambiguous after one question. Extracted: ${doc.precheck.extracted ?? "nothing"}.`,
+    clientWords: store.list("messages").filter((m) => m.clientId === event.clientId && m.sender === "client").at(-1)?.text ?? null,
+    suggestedNextStep: `Call ${client.firstName} to confirm their income and update the application if it changed.`,
+  });
 }
 
 /**
