@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTools } from "../src/assistant/tools";
 import { openStore, type Store } from "../src/store/store";
-import { markHandled } from "./actions";
+import { handBack, markHandled, sendAgentTextAction } from "./actions";
 import AgentView from "./page";
 import { UploadPage } from "./UploadPage";
 
@@ -76,5 +76,51 @@ describe("the paused upload page", () => {
     expect(html).toContain("Andrew needs to talk with you first. Please don&#x27;t upload anything yet.");
     expect(html).not.toContain('type="file"');
     expect(html).not.toContain("come back later");
+  });
+});
+
+describe("the Agent in the Thread", () => {
+  const send = async (clientId: string, text: string) => {
+    const form = new FormData();
+    form.set("clientId", clientId);
+    form.set("text", text);
+    await sendAgentTextAction(form);
+  };
+
+  it("shows a message box under the Thread, and 'Reply in Thread' on the handoff card jumps to it", async () => {
+    await escalateMarcus();
+    const html = await view(MARCUS);
+    expect(html).toContain('name="text"');
+    expect(html).toContain('id="message-box"');
+    expect(html).toContain('href="#message-box"');
+    expect(html).toContain("Reply in Thread");
+  });
+
+  it("sends the text with the prefix, then shows the banner and the queue chip", async () => {
+    await send(MARCUS, "Call me when you can.");
+    const html = await view(MARCUS);
+    expect(html).toContain("Andrew here: Call me when you can.");
+    expect(html).toContain("The Assistant is holding its replies and nudges for this Client");
+    expect(html).toContain("Hand back to the Assistant");
+    expect(html).toContain("You&#x27;re in the Thread");
+  });
+
+  it("Hand back clears the banner and the chip", async () => {
+    await send(MARCUS, "Hi");
+    const form = new FormData();
+    form.set("clientId", MARCUS);
+    await handBack(form);
+    const html = await view(MARCUS);
+    expect(html).not.toContain("Hand back to the Assistant");
+    expect(html).not.toContain("You&#x27;re in the Thread");
+  });
+
+  it("gives an opted-out Client a call note instead of a message box", async () => {
+    const marcus = store.list("clients").find((c) => c.id === MARCUS)!;
+    store.update("clients", { ...marcus, optedOutAt: new Date().toISOString() });
+    const html = await view(MARCUS);
+    expect(html).not.toContain('id="message-box"');
+    expect(html).not.toContain('name="text"');
+    expect(html).toContain(`opted out of texts. Call ${marcus.phone} instead.`);
   });
 });

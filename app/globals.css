@@ -304,3 +304,10 @@ details p { margin-top: 6px; font-size: 13px; }
 .handoff p { margin: 0; }
 .handoff .quote { margin: 0; padding-left: 10px; border-left: 3px solid var(--crit); font-style: italic; }
 .handoff form { display: flex; gap: 8px; }
+
+/* The Agent in the Thread: the banner, and the message box under the Thread (Agent view prototype, variant A). */
+.banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 1px solid var(--info); background: var(--info-soft); border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 16px; font-size: 13px; }
+.message-box { display: grid; gap: 8px; margin-top: 12px; }
+.message-box textarea { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line-strong); border-radius: var(--radius-xs); resize: vertical; }
+.message-box button { justify-self: start; }
+.handoff a.button { align-self: center; font-size: 13px; }
