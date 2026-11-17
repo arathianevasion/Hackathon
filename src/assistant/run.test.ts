@@ -186,6 +186,8 @@ function scriptedReplyModel() {
                   ? "ready"
                   : /why|what do you need/i.test(message)
                     ? "why"
+                    : /what does this mean|don't understand|what is this|is this a scam/i.test(message)
+                      ? "explain"
                     : /\b(ai|bot|robot|human|real person)\b/i.test(message)
                       ? "disclosure"
                       : /dental|bill/i.test(message)
@@ -393,6 +395,59 @@ describe("runAssistant on client.message", () => {
       expect(model.calls).toHaveLength(1);
       expect(thread(MARCUS).map((m) => m.sender)).toEqual(["client", "assistant", "client"]);
       expect(open(MARCUS)).toHaveLength(1);
+    });
+  });
+
+  describe("a Client who asks what the texts mean", () => {
+    const INCOME = (url: string) =>
+      `It means the Marketplace needs one document to confirm your income. The income on your application didn't match their records, like IRS data. That's common, and you're not in trouble. A recent pay stub, a letter from your employer or your 2025 tax return works. Without it by Nov 26, your premium help could stop. The link shows what to send and lets you take a photo: ${url}`;
+    const SSN = (url: string) =>
+      `It means the Marketplace needs one document to confirm your Social Security number. The number on your application didn't match Social Security's records. That's common, and you're not in trouble. A photo of your Social Security card works, and the page lists other documents. Without it by Nov 21, your coverage could change. The link shows what to send and lets you take a photo: ${url}`;
+    const firstText = (clientId: string) =>
+      store.add("messages", { id: `msg-first-${clientId}`, clientId, sender: "assistant", sentAt: NOW.toISOString(), text: "first text" });
+    const linkOf = (clientId: string) => store.list("portalLinks").find((l) => l.clientId === clientId)!.url;
+    const escalations = (clientId: string) => store.list("escalations").filter((e) => e.clientId === clientId);
+
+    it.each(["What does this mean?", "I don't understand", "what is this?"])("answers %j with the income explainer, no Escalation", async (typed) => {
+      firstText(ROSA);
+      await reply(ROSA, typed, scriptedReplyModel());
+      expect(thread(ROSA).at(-1)!.text).toBe(INCOME(linkOf(ROSA)));
+      expect(escalations(ROSA)).toEqual([]);
+    });
+
+    it("gives an SSN DMI the SSN version", async () => {
+      firstText(LENA);
+      await reply(LENA, "What does this mean?", scriptedReplyModel());
+      expect(thread(LENA).at(-1)!.text).toBe(SSN(linkOf(LENA)));
+      expect(escalations(LENA)).toEqual([]);
+    });
+
+    it("opens with the AI disclosure after 7 quiet days", async () => {
+      firstText(ROSA);
+      await reply(ROSA, "What does this mean?", scriptedReplyModel(), new Date(NOW.getTime() + 8 * 86_400_000));
+      expect(thread(ROSA).at(-1)!.text).toBe(`I'm the AI assistant for your insurance agent, Andrew. ${INCOME(linkOf(ROSA))}`);
+    });
+
+    it("leaves 'Why do I need this?' with the why reply", async () => {
+      firstText(ROSA);
+      await reply(ROSA, "Why do I need this?", scriptedReplyModel());
+      expect(thread(ROSA).at(-1)!.text).toMatch(/^It's a routine check\./);
+    });
+
+    it("still escalates a tax question as advice_or_low_confidence", async () => {
+      firstText(ROSA);
+      await reply(ROSA, "Do I need a lawyer for this?", scriptedReplyModel());
+      expect(escalations(ROSA).map((e) => e.trigger)).toEqual(["advice_or_low_confidence"]);
+    });
+
+    it("offers the explain reply, and tells the model confusion is not low confidence", async () => {
+      firstText(ROSA);
+      const model = scriptedReplyModel();
+      await reply(ROSA, "What does this mean?", model);
+      const prompt = String(model.calls[0].messages[0].content);
+      expect(prompt).toMatch(/- explain: [^\n]*(what does this mean|don't understand)/i);
+      expect(prompt).toContain('<reply id="explain">It means the Marketplace needs one document to confirm your income.');
+      expect(prompt).toMatch(/- advice_or_low_confidence: [^\n]*cannot place/);
     });
   });
 

@@ -29,9 +29,20 @@ function whyText(type: DmiType, deadline: IsoDate): string {
     : `It's a routine check. The Marketplace couldn't match your income with its records. Without proof by ${by}, your premium help could stop. The link explains more: ${PORTAL_LINK_SLOT}`;
 }
 
+/** What the texts mean, per DMI type (Andrew's wording, 17 Nov 2026, #92): the answer to "What does this mean?", not an Escalation. */
+function explainText(type: DmiType, deadline: IsoDate): string {
+  const by = dueDateLabel(deadline);
+  const tail = `The link shows what to send and lets you take a photo: ${PORTAL_LINK_SLOT}`;
+  return type === "ssn"
+    ? `It means the Marketplace needs one document to confirm your Social Security number. The number on your application didn't match Social Security's records. That's common, and you're not in trouble. A photo of your Social Security card works, and the page lists other documents. Without it by ${by}, your coverage could change. ${tail}`
+    : `It means the Marketplace needs one document to confirm your income. The income on your application didn't match their records, like IRS data. That's common, and you're not in trouble. A recent pay stub, a letter from your employer or your 2025 tax return works. Without it by ${by}, your premium help could stop. ${tail}`;
+}
+
 /** The only wording the Assistant may send to a Client's reply; it picks one, never writes its own. */
 export interface ReplyTexts {
   why: string;
+  /** For confusion about the texts or the DMI. */
+  explain: string;
   disclosure: string;
   ssn: string;
   /** The promise after "later"; null when no nudge is scheduled, so there is nothing to promise. */
@@ -49,6 +60,7 @@ export function replyTexts(input: { agentFirstName: string; dmiType: DmiType; de
   const open = (text: string) => (input.quiet ? `${ai} ${text}` : text);
   return {
     why: open(whyText(input.dmiType, input.deadline)),
+    explain: open(explainText(input.dmiType, input.deadline)),
     disclosure: ai,
     ssn: open("Please don't send your Social Security number by text. The Marketplace needs a document, and the link shows which ones work."),
     later: input.checkInOn === null ? null : open(laterText(input.checkInOn)),
