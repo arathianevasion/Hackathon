@@ -108,3 +108,21 @@ describe("the upload page's way out", () => {
     expect(html).not.toContain("come back later</button>");
   });
 });
+
+describe("the upload page after a demo fast-forward", () => {
+  it("opens the upload session on the demo clock, so the upload action can take the upload", async () => {
+    const { demoClock, resetDemoClock } = await import("../src/cadence/demo");
+    resetDemoClock();
+    demoClock().advance(3 * 24 * 60 * 60 * 1000);
+    const link = issuePortalLink(store, ROSA, "dmi-01", demoClock().now());
+    const token = link.url.slice(PORTAL_LINK_BASE.length);
+    const props = { params: Promise.resolve({ token }), searchParams: Promise.resolve({}) };
+    const html = await render(UploadRoute(props));
+    expect(html).toContain("Take a photo");
+    const { receiveUpload } = await import("../src/portal/upload");
+    const bytes = new Uint8Array([1, 2, 3]);
+    const upload = { choice: "Pay stub", fileName: "a.png", mediaType: "image/png", bytes };
+    expect(() => receiveUpload({ store, now: demoClock().now }, link.url, upload)).not.toThrow();
+    resetDemoClock();
+  });
+});

@@ -98,6 +98,11 @@ export function UploadPage({ token, state }: { token: string; state: UploadPageS
     );
   }
 
+  // A refused upload leaves the page's attempt count where it was, so the spinner is cleared here.
+  const send = async (formData: FormData) => {
+    const { taken } = await uploadDocument(formData);
+    if (!taken) setSendingAt(null);
+  };
   const pick = () => {
     setSendingAt(attempt);
     form.current?.requestSubmit();
@@ -144,7 +149,7 @@ export function UploadPage({ token, state }: { token: string; state: UploadPageS
       ) : (
         <p className="cap">Your photo must show {copy.must}.</p>
       )}
-      <form ref={form} action={uploadDocument} className="drop" aria-busy={sending}>
+      <form ref={form} action={send} className="drop" aria-busy={sending}>
         <input type="hidden" name="token" value={token} />
         <input type="hidden" name="choice" value={choice} />
         <span className="big">Upload {copy.choices[0].label.toLowerCase()}</span>
