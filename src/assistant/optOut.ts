@@ -7,7 +7,7 @@ const START_WORDS = new Set(["start", "unstop"]);
 
 /** Whether a Client's text is, in full, an opt-out or opt-in keyword; "stop calling me" is an ordinary text. */
 export function optKeyword(text: string): "stop" | "start" | null {
-  const word = text.trim().toLowerCase().replace(/[^a-z]+$/, "");
+  const word = text.toLowerCase().replace(/[^a-z]+/g, " ").trim().replace(/^stop all$/, "stopall");
   return STOP_WORDS.has(word) ? "stop" : START_WORDS.has(word) ? "start" : null;
 }
 

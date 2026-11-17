@@ -28,7 +28,7 @@ describe("STOP and START", () => {
     expect(notes().map((n) => [n.event, n.agentId])).toEqual([["opted_out", store.agent()!.id]]);
   });
 
-  it.each(["stop", " Stop. ", "STOP!", "unsubscribe", "Cancel", "END", "quit", "stopall"])("%j counts as STOP", (typed) => {
+  it.each(["stop", " Stop. ", "STOP!", "unsubscribe", "Cancel", "END", "quit", "stopall", "\"STOP\"", "\u201CSTOP\u201D", "stop all", "Stop  All", "STOP\n"])("%j counts as STOP", (typed) => {
     receiveClientText({ store, now: () => NOW }, ROSA, typed);
     expect(rosa().optedOutAt).toBe(NOW.toISOString());
   });
