@@ -7,6 +7,7 @@ export interface QueueRow {
   name: string;
   dmiType: DmiType;
   dmiStatus: DmiStatus;
+  noticeDate: IsoDate;
   deadline: IsoDate;
   /** Calendar days from today to the deadline; null once the DMI is resolved. */
   daysLeft: number | null;
@@ -33,6 +34,7 @@ export function rankByDeadline(clients: Client[], dmis: Dmi[], today: IsoDate, e
           name: `${client.firstName} ${client.lastName}`,
           dmiType: dmi.type,
           dmiStatus: dmi.status,
+          noticeDate: dmi.noticeDate,
           deadline: dmi.deadline,
           daysLeft: resolved ? null : daysBetween(today, dmi.deadline),
           escalated: escalated.has(client.id),

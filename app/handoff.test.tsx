@@ -8,6 +8,7 @@ import { UploadPage } from "./UploadPage";
 
 let store: Store;
 vi.mock("../src/store/demo", () => ({ demoStore: () => store }));
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: "signed-in" }) }) }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("next/navigation", () => ({ redirect: () => {}, useRouter: () => ({ refresh: () => {} }) }));
 

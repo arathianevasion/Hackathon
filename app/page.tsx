@@ -1,15 +1,19 @@
 import type { DmiType, EscalationTrigger, NotificationEvent } from "../src/contract";
-import { toIsoDate } from "../src/dates";
+import { daysBetween, toIsoDate } from "../src/dates";
 import { rankByDeadline } from "../src/queue/rank";
 import { demoStore } from "../src/store/demo";
+import { cookies } from "next/headers";
 import Link from "next/link";
+import { SESSION_COOKIE, SESSION_VALUE } from "../src/agentSession";
+import { atRisk, filterQueue, parseFilter, QUEUE_FILTERS, queueTotals, windowUsedPercent, type QueueFilter } from "../src/queue/totals";
 import { assistantTextsAbout } from "../src/assistant/firstText";
 import { uploadPageState } from "../src/portal/uploadPage";
 import { demoClock } from "../src/cadence/demo";
 import { agentInThread } from "../src/assistant/escalations";
-import { fastForwardDemo, handBack, markHandled, openDmi, resetDemo, sendAgentTextAction } from "./actions";
+import { fastForwardDemo, handBack, markHandled, openDmi, resetDemo, sendAgentTextAction, signOut } from "./actions";
 import { AutoRefresh } from "./AutoRefresh";
 import { PhoneSimulator } from "./PhoneSimulator";
+import { SignIn } from "./SignIn";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +33,13 @@ const TRIGGER_LABEL: Record<EscalationTrigger, string> = {
   insufficient_twice: "Document insufficient twice",
   suspected_fraud: "Suspected fraud or inconsistent documents",
   silence: "No response after initial text and nudge",
+};
+
+const TOTAL_LABEL: Record<QueueFilter, string> = {
+  escalations: "Escalations open",
+  due_soon: "Due soon",
+  submitted: "Submitted",
+  resolved: "Resolved",
 };
 
 const DMI_LABEL: Record<DmiType, string> = {
@@ -65,10 +76,24 @@ function timeLabel(at: string): string {
   return new Date(at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-export default async function AgentView({ searchParams }: { searchParams: Promise<{ client?: string; portal?: string; phone?: string; notsent?: string }> }) {
-  const store = demoStore();
-  const rows = rankByDeadline(store.list("clients"), store.list("dmis"), toIsoDate(demoClock().now()), store.list("escalations"));
+export default async function AgentView({ searchParams }: { searchParams: Promise<{ client?: string; portal?: string; phone?: string; notsent?: string; filter?: string; signin?: string }> }) {
   const params = await searchParams;
+  if ((await cookies()).get(SESSION_COOKIE)?.value !== SESSION_VALUE) return <SignIn wrong={params.signin === "wrong"} />;
+  const store = demoStore();
+  const today = toIsoDate(demoClock().now());
+  const allRows = rankByDeadline(store.list("clients"), store.list("dmis"), today, store.list("escalations"));
+  const filter = parseFilter(params.filter);
+  const rows = filterQueue(allRows, filter);
+  const totals = queueTotals(allRows);
+  const selectedRow = allRows.find((r) => r.clientId === params.client) ?? null;
+  /** A link that keeps the selected Client and turns the filter on, or off when it is already on. */
+  const totalHref = (f: QueueFilter) => {
+    const q = new URLSearchParams();
+    if (params.client) q.set("client", params.client);
+    if (filter !== f) q.set("filter", f);
+    return q.size ? `/?${q}` : "/";
+  };
+  const clientHref = (id: string) => `/?${new URLSearchParams({ client: id, ...(filter ? { filter } : {}) })}`;
   const selectedId = params.client ?? null;
   const browser = params.portal ? { token: params.portal, state: uploadPageState(store, params.portal, demoClock().now()) } : null;
   const inThread = (id: string) => agentInThread(store, id);
@@ -105,8 +130,20 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
           <form action={resetDemo}>
             <button type="submit">Reset demo</button>
           </form>
+          <form action={signOut}>
+            <button type="submit">Sign out</button>
+          </form>
         </div>
       </header>
+
+      <nav className="totals" aria-label="Totals">
+        {QUEUE_FILTERS.map((f) => (
+          <Link key={f} href={totalHref(f)} className={`total${f === "escalations" ? " crit" : ""}`} aria-current={filter === f ? "true" : undefined}>
+            <span className="num">{totals[f]}</span>
+            <span className="label">{TOTAL_LABEL[f]}</span>
+          </Link>
+        ))}
+      </nav>
 
       <div className={showPhone ? "layout" : "layout no-phone"}>
         <section className="queue" aria-label="Clients by deadline">
@@ -115,15 +152,17 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
             <span className="label">DMI</span>
             <span className="label">Days left</span>
           </div>
+          {rows.length === 0 && <p className="muted empty">No Clients match this total.</p>}
           {rows.map((row) => (
             <div className={row.clientId === selectedId ? "row sel" : "row"} role="row" key={row.clientId}>
-              <Link className="name" href={`/?client=${row.clientId}`} aria-current={row.clientId === selectedId ? "true" : undefined}>
+              <Link className="name" href={clientHref(row.clientId)} aria-current={row.clientId === selectedId ? "true" : undefined}>
                 {row.name}
               </Link>
               <span className="dmi">
                 {DMI_LABEL[row.dmiType]}
                 {row.dmiStatus === "documents_submitted" && <span className="chip info"> Submitted</span>}
                 {row.escalated && <span className="chip crit"> Escalation</span>}
+                {atRisk(row) && <span className="chip warn"> At risk</span>}
                 {inThread(row.clientId) && <span className="chip info"> You&rsquo;re in the Thread</span>}
               </span>
               <span className={`days${daysTone(row.daysLeft)}`}>
@@ -140,6 +179,9 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
               <h2>
                 {selected.firstName} {selected.lastName}
               </h2>
+              <a className="button crm" href="#crm" title="Opens the Client's record in the CRM. Not built in the POC.">
+                View CRM record ↗
+              </a>
               {openDmiToText && thread.length === 0 && (
                 <form action={openDmi}>
                   <input type="hidden" name="clientId" value={selected.id} />
@@ -148,6 +190,24 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
                 </form>
               )}
             </header>
+
+            {selectedRow && (
+              <div className="window">
+                <div
+                  className="meter"
+                  role="meter"
+                  aria-label="Share of the window used"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={windowUsedPercent(selectedRow.noticeDate, selectedRow.deadline, today)}
+                >
+                  <span className={`fill${daysTone(selectedRow.daysLeft)}`} style={{ width: `${windowUsedPercent(selectedRow.noticeDate, selectedRow.deadline, today)}%` }} />
+                </div>
+                <span className="data muted">
+                  {daysBetween(selectedRow.noticeDate, selectedRow.deadline)}-day window · notice {shortDate(selectedRow.noticeDate)}, deadline {shortDate(selectedRow.deadline)}
+                </span>
+              </div>
+            )}
 
             {openEscalations.map((e) => (
               <div className="handoff" key={e.id} aria-label="Handoff">
