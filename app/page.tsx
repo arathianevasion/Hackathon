@@ -5,7 +5,8 @@ import { demoStore } from "../src/store/demo";
 import Link from "next/link";
 import { assistantTextsAbout } from "../src/assistant/firstText";
 import { uploadPageState } from "../src/portal/uploadPage";
-import { openDmi, resetDemo } from "./actions";
+import { demoClock } from "../src/cadence/demo";
+import { fastForwardDemo, openDmi, resetDemo } from "./actions";
 import { AutoRefresh } from "./AutoRefresh";
 import { PhoneSimulator } from "./PhoneSimulator";
 
@@ -42,10 +43,10 @@ function timeLabel(at: string): string {
 
 export default async function AgentView({ searchParams }: { searchParams: Promise<{ client?: string; portal?: string; phone?: string }> }) {
   const store = demoStore();
-  const rows = rankByDeadline(store.list("clients"), store.list("dmis"), toIsoDate(new Date()));
+  const rows = rankByDeadline(store.list("clients"), store.list("dmis"), toIsoDate(demoClock().now()));
   const params = await searchParams;
   const selectedId = params.client ?? null;
-  const browser = params.portal ? { token: params.portal, state: uploadPageState(store, params.portal, new Date()) } : null;
+  const browser = params.portal ? { token: params.portal, state: uploadPageState(store, params.portal, demoClock().now()) } : null;
   const showPhone = params.phone !== "off";
   const selected = store.list("clients").find((c) => c.id === selectedId) ?? null;
   const thread = selected ? store.list("messages").filter((m) => m.clientId === selected.id) : [];
@@ -63,6 +64,17 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
           <h1>Your Enrollment Follow-ups</h1>
           <p className="muted">Synthetic data only. Clients ranked by DMI deadline.</p>
         </div>
+        <form action={fastForwardDemo}>
+          <label>
+            Fast-forward{" "}
+            <select name="days" defaultValue="1">
+              <option value="1">1 day</option>
+              <option value="3">3 days</option>
+              <option value="7">7 days</option>
+            </select>
+          </label>{" "}
+          <button type="submit">Go</button>
+        </form>
         <form action={resetDemo}>
           <button type="submit">Reset demo</button>
         </form>
