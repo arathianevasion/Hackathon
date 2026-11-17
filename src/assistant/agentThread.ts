@@ -17,7 +17,8 @@ export interface AgentThreadDeps {
 export async function sendAgentText(deps: AgentThreadDeps, clientId: ClientId, text: string): Promise<SendTextResult> {
   const agent = deps.store.agent();
   if (!agent) throw new Error("No Agent");
-  return deliverAgentText(deps, clientId, `${agent.firstName} here: ${text}`);
+  const prefix = `${agent.firstName} here:`;
+  return deliverAgentText(deps, clientId, text.startsWith(prefix) ? text : `${prefix} ${text}`);
 }
 
 /**

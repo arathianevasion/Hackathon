@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createClock } from "../cadence/clock";
 import { runDueCadence } from "../cadence/engine";
 import { openStore, type Store } from "../store/store";
+import { receiveClientText } from "./inbound";
+import { runAssistant } from "./run";
 import { handBackToAssistant, sendAgentText } from "./agentThread";
 import { agentInThread, isPaused } from "./escalations";
 import { createTools } from "./tools";
@@ -27,6 +29,11 @@ describe("an Agent text in the Thread", () => {
     expect(result).toMatchObject({ sent: true });
     const last = store.list("messages").filter((m) => m.clientId === ROSA).at(-1)!;
     expect(last).toMatchObject({ sender: "agent", text: "Andrew here: Can you call me back today?" });
+  });
+
+  it("does not double the prefix when the Agent typed it", async () => {
+    await sendAgentText(deps(NOW), ROSA, "Andrew here: Hi Rosa");
+    expect(store.list("messages").at(-1)!.text).toBe("Andrew here: Hi Rosa");
   });
 
   it("holds the Assistant for that Client until Hand back", async () => {
@@ -66,6 +73,26 @@ describe("an Agent text in the Thread", () => {
     expect(await sendAgentText(deps(NOW), ROSA, "Hi")).toEqual({ sent: false, reason: "opted_out" });
     expect(store.list("messages").length).toBe(before);
     expect(agentInThread(store, ROSA)).toBe(false);
+  });
+});
+
+describe("a Client reply while the Agent is in the Thread", () => {
+  // The model must never be asked: a held Assistant does not run.
+  const model = { messages: { toolRunner: () => { throw new Error("the Assistant ran"); } } } as never;
+
+  it("is stored but gets no Assistant run and no reply", async () => {
+    await sendAgentText(deps(NOW), MARCUS, "Hello");
+    const event = receiveClientText(deps(LATER), MARCUS, "Thanks, calling you now");
+    const before = store.list("messages").length;
+    await runAssistant(event, { ...deps(LATER), model });
+    expect(store.list("messages").length).toBe(before);
+  });
+
+  it("stays held after Hand back while an Escalation is open", async () => {
+    await tools(NOW).escalate_to_agent({ clientId: MARCUS, trigger: "advice_or_low_confidence", summary: "s", clientWords: null, suggestedNextStep: null });
+    await sendAgentText(deps(NOW), MARCUS, "Hello");
+    handBackToAssistant(deps(LATER), MARCUS);
+    await runAssistant(receiveClientText(deps(LATER), MARCUS, "Still there?"), { ...deps(LATER), model });
   });
 });
 
