@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { judgeDocument, type JudgeInput } from "./checks";
+import { incomeMismatchThreshold } from "./rules";
 import type { ExtractedFields } from "./extract";
 
 /** Rosa's full SPECIMEN pay stub: $1,560 biweekly is $40,560 a year, against $40,000 attested. */
@@ -84,6 +85,20 @@ describe("judgeDocument", () => {
       reasons: ["Annualized income is more than 10% from the income on the application"],
       checksRun: [1, 2, 3, 4, 5, 6],
     });
+  });
+
+  it("takes the threshold from configuration, not code", () => {
+    const off = rosa({ pay: { amount: 1700, frequency: "biweekly" } }); // $44,200: 10.5% off
+    expect(judgeDocument(off).result).toBe("ambiguous");
+    expect(judgeDocument({ ...off, incomeMismatchThreshold: 0.2 }).result).toBe("sufficient");
+    expect(judgeDocument({ ...off, incomeMismatchThreshold: 0.05 }).reasons).toEqual(["Annualized income is more than 5% from the income on the application"]);
+  });
+
+  it("reads the default threshold from DMI_INCOME_MISMATCH_THRESHOLD, and refuses a nonsense one", () => {
+    expect(incomeMismatchThreshold({})).toBe(0.1);
+    expect(incomeMismatchThreshold({ DMI_INCOME_MISMATCH_THRESHOLD: "0.25" })).toBe(0.25);
+    expect(() => incomeMismatchThreshold({ DMI_INCOME_MISMATCH_THRESHOLD: "lots" })).toThrow("DMI_INCOME_MISMATCH_THRESHOLD");
+    expect(() => incomeMismatchThreshold({ DMI_INCOME_MISMATCH_THRESHOLD: "-1" })).toThrow("DMI_INCOME_MISMATCH_THRESHOLD");
   });
 
   it("keeps an insufficient result insufficient when income is also off", () => {
