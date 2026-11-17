@@ -58,3 +58,12 @@ export function laterText(checkInOn: IsoDate): string {
 
 /** The text that sends a fresh link once the Client says they have the document (variant D); the link goes where the slot is. */
 export const READY_TEXT = `Great. Here's a new link, good for 3 days: ${PORTAL_LINK_SLOT}`;
+
+/**
+ * The text after a Client reports an income, household or application change,
+ * verbatim from variant D (Marcus): no advice on what to report, only that the
+ * Agent will be in touch and that nothing should be uploaded meanwhile.
+ */
+export function applicationChangeText(agentFirstName: string): string {
+  return `It might. ${agentFirstName}, your licensed agent, needs to update your application, so I've passed this to him and he'll contact you. Please don't upload anything yet.`;
+}

@@ -244,4 +244,35 @@ describe("Assistant tools", () => {
       expect(await tools.send_text({ clientId: ROSA, text: `Upload here: ${stale.url}` })).toEqual({ sent: false, reason: "outbound_filter" });
     });
   });
+
+  describe("escalate_to_agent", () => {
+    const LENA = "client-05";
+    const replyFrom = (clientId: string) =>
+      store.add("messages", { id: `msg-c-${clientId}`, clientId, sender: "client", sentAt: NOW.toISOString(), text: "hi" });
+    const escalate = (clientId: string) =>
+      tools.escalate_to_agent({ clientId, trigger: "income_or_application_change", summary: "New job, lower pay.", clientWords: "hi", suggestedNextStep: "Call." });
+
+    it("raises an open Escalation with all four parts", async () => {
+      const { escalationId } = await escalate(ROSA);
+      expect(store.list("escalations").find((e) => e.id === escalationId)).toMatchObject({
+        clientId: ROSA, trigger: "income_or_application_change", summary: "New job, lower pay.", clientWords: "hi", suggestedNextStep: "Call.", status: "open", handledAt: null,
+      });
+    });
+
+    it("pauses the Assistant for that Client: no texts, no Portal links, each refusal logged", async () => {
+      replyFrom(ROSA);
+      await escalate(ROSA);
+      await expect(tools.send_text({ clientId: ROSA, text: "Any news?" })).rejects.toThrow(/paused/i);
+      await expect(tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" })).rejects.toThrow(/paused/i);
+      expect(store.list("messages").filter((m) => m.sender === "assistant" && m.clientId === ROSA)).toEqual([]);
+      expect(store.list("portalLinks")).toEqual([]);
+      expect(newLogEntries().filter((e) => e.result.startsWith("Refused: paused")).map((e) => e.tool)).toEqual(["send_text", "create_portal_link"]);
+    });
+
+    it("pauses only that Client", async () => {
+      replyFrom(LENA);
+      await escalate(ROSA);
+      expect(await tools.send_text({ clientId: LENA, text: "Any news?" })).toMatchObject({ sent: true });
+    });
+  });
 });

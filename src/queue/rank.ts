@@ -1,4 +1,4 @@
-import type { Client, ClientId, Dmi, DmiStatus, DmiType, IsoDate } from "../contract";
+import type { Client, ClientId, Dmi, DmiStatus, DmiType, Escalation, IsoDate } from "../contract";
 import { daysBetween } from "../dates";
 
 /** One row of the Agent view's Client list. */
@@ -7,17 +7,22 @@ export interface QueueRow {
   name: string;
   dmiType: DmiType;
   dmiStatus: DmiStatus;
+  noticeDate: IsoDate;
   deadline: IsoDate;
   /** Calendar days from today to the deadline; null once the DMI is resolved. */
   daysLeft: number | null;
+  /** An Escalation is open for the Client: the Agent must act. */
+  escalated: boolean;
 }
 
 /**
- * Ranks Clients by their DMI deadline, soonest first. Resolved DMIs have no
+ * Ranks Clients by urgency, then their DMI deadline, soonest first. Clients with
+ * an open Escalation need the Agent, so they come first. Resolved DMIs have no
  * deadline to chase, so they go last, most recently resolved first.
  */
-export function rankByDeadline(clients: Client[], dmis: Dmi[], today: IsoDate): QueueRow[] {
+export function rankByDeadline(clients: Client[], dmis: Dmi[], today: IsoDate, escalations: Escalation[]): QueueRow[] {
   const dmiOf = new Map(dmis.map((d) => [d.clientId, d]));
+  const escalated = new Set(escalations.filter((e) => e.status === "open").map((e) => e.clientId));
   const rows = clients.flatMap((client) => {
     const dmi = dmiOf.get(client.id);
     if (!dmi) return [];
@@ -29,8 +34,10 @@ export function rankByDeadline(clients: Client[], dmis: Dmi[], today: IsoDate): 
           name: `${client.firstName} ${client.lastName}`,
           dmiType: dmi.type,
           dmiStatus: dmi.status,
+          noticeDate: dmi.noticeDate,
           deadline: dmi.deadline,
           daysLeft: resolved ? null : daysBetween(today, dmi.deadline),
+          escalated: escalated.has(client.id),
         },
         resolvedAt: resolved ? (dmi.resolvedAt ?? "") : null,
       },
@@ -38,6 +45,7 @@ export function rankByDeadline(clients: Client[], dmis: Dmi[], today: IsoDate): 
   });
 
   rows.sort((a, b) => {
+    if (a.row.escalated !== b.row.escalated) return a.row.escalated ? -1 : 1;
     if (a.resolvedAt === null && b.resolvedAt === null) {
       return a.row.deadline.localeCompare(b.row.deadline) || a.row.name.localeCompare(b.row.name);
     }

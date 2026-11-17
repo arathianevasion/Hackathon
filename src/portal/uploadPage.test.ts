@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createTools } from "../assistant/tools";
 import { openStore, type Store } from "../store/store";
 import { issuePortalLink, openUploadSession, PORTAL_LINK_BASE } from "./portalLink";
 import { uploadPageState } from "./uploadPage";
@@ -72,5 +73,12 @@ describe("uploadPageState", () => {
     const token = opened();
     expect(uploadPageState(store, token, new Date(NOW.getTime() + 31 * 60_000))).toEqual({ kind: "expired" });
     expect(uploadPageState(store, "NOPE", NOW)).toEqual({ kind: "expired" });
+  });
+
+  it("shows the paused state while an Escalation is open: the Agent will be in touch, and no upload is asked for", async () => {
+    const token = opened();
+    const tools = createTools({ store, now: () => NOW, extract: () => Promise.reject(new Error("none")) });
+    await tools.escalate_to_agent({ clientId: ROSA, trigger: "income_or_application_change", summary: "s", clientWords: null, suggestedNextStep: null });
+    expect(uploadPageState(store, token, NOW)).toEqual({ kind: "paused", agentFirstName: "Andrew" });
   });
 });

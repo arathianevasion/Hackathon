@@ -1,5 +1,6 @@
 import type { ClientId, Dmi, DmiId, DmiType, Escalation, IsoDateTime, Message } from "../contract";
 import { assistantTextsAbout, dueDateLabel } from "../assistant/firstText";
+import { isPaused, lastHandBackAt } from "../assistant/escalations";
 import type { Tools } from "../assistant/tools";
 import { finishMarketplaceReviews } from "../marketplace/marketplace";
 import { PortalLinkLimitError } from "../portal/portalLink";
@@ -35,15 +36,16 @@ function nudgeText(firstName: string, type: DmiType, link: string): string {
 
 /**
  * The last contact: the Client's last message, or the first text when they have
- * not replied, or the moment an Escalation was last handed back, whichever is later.
+ * not replied, or the moment an Escalation was marked handled or the Agent handed
+ * the Thread back, whichever is later.
  */
-function lastContact(thread: Message[], escalations: Escalation[]): number | null {
+function lastContact(thread: Message[], escalations: Escalation[], handedBack: number | null): number | null {
   const fromClient = thread.filter((m) => m.sender === "client").at(-1);
   const first = thread.find((m) => m.sender === "assistant");
   const base = fromClient ?? first;
   if (!base) return null;
   const handed = escalations.flatMap((e) => (e.handledAt ? [Date.parse(e.handledAt)] : []));
-  return Math.max(Date.parse(base.sentAt), ...handed);
+  return Math.max(Date.parse(base.sentAt), ...handed, handedBack ?? 0);
 }
 
 /** The DMI the Assistant is working for a Client, their last contact and the cadence it puts them on. */
@@ -52,7 +54,7 @@ function scheduleFor(store: Store, clientId: ClientId, escalations: Escalation[]
     .list("dmis")
     .filter((d) => d.clientId === clientId && d.status === "open" && assistantTextsAbout(d.type))
     .sort((a, b) => a.deadline.localeCompare(b.deadline))[0];
-  const contact = dmi && lastContact(store.list("messages").filter((m) => m.clientId === clientId), escalations);
+  const contact = dmi && lastContact(store.list("messages").filter((m) => m.clientId === clientId), escalations, lastHandBackAt(store, clientId));
   if (!dmi || contact === null || contact === undefined) return null;
   const cadence = cadenceFor(daysLeftOn(new Date(contact), dmi.deadline));
   const nudged = store.list("actionLog").some((l) => l.clientId === clientId && l.result === NUDGE_LOGGED && Date.parse(l.at) > contact);
@@ -62,13 +64,13 @@ function scheduleFor(store: Store, clientId: ClientId, escalations: Escalation[]
 /**
  * When the Client's scheduled nudge will go out: the cadence's nudge day after
  * their last contact, held to the texting window. Null when none is scheduled
- * (no open DMI, opted out, an Escalation open, or the nudge already sent).
+ * (no open DMI, opted out, the Assistant paused, or the nudge already sent).
  * Anything that tells the Client when to expect the check-in reads it here.
  */
 export function nextNudgeAt(store: Store, clientId: ClientId, quietHours: QuietHours = QUIET_HOURS): Date | null {
   const client = store.list("clients").find((c) => c.id === clientId);
   const escalations = store.list("escalations").filter((e) => e.clientId === clientId);
-  if (!client || client.optedOutAt !== null || escalations.some((e) => e.status === "open")) return null;
+  if (!client || client.optedOutAt !== null || isPaused(store, clientId)) return null;
   const schedule = scheduleFor(store, clientId, escalations);
   if (!schedule || schedule.nudged) return null;
   let at = new Date(schedule.contact + schedule.cadence.nudgeAfterDays * DAY_MS);
@@ -89,7 +91,7 @@ export async function runDueCadence({ store, clock, tools, quietHours = QUIET_HO
   for (const client of store.list("clients")) {
     if (client.optedOutAt !== null) continue;
     const escalations = store.list("escalations").filter((e) => e.clientId === client.id);
-    if (escalations.some((e) => e.status === "open")) continue;
+    if (isPaused(store, client.id)) continue;
     const schedule = scheduleFor(store, client.id, escalations);
     if (!schedule) continue;
     const { dmi, contact } = schedule;

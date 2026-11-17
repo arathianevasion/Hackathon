@@ -103,11 +103,48 @@ describe("runAssistant on dmi.detected", () => {
     ]);
   });
 
-  it("does not run for a citizenship DMI, which goes to the Agent instead", async () => {
+  it("escalates a citizenship DMI at open, with no model run and no text to the Client", async () => {
+    // The seed's Tomasz is already escalated; handle that so the DMI opens fresh.
+    const seeded = store.list("escalations").find((e) => e.clientId === "client-06")!;
+    store.update("escalations", { ...seeded, status: "handled", handledAt: NOW.toISOString() });
     const model = scriptedModel();
     await runAssistant({ name: "dmi.detected", clientId: "client-06", dmiId: "dmi-06" }, { store, now: () => NOW, model: model.client });
     expect(model.calls).toEqual([]);
     expect(thread("client-06")).toEqual([]);
+    expect(store.list("escalations").filter((e) => e.clientId === "client-06" && e.status === "open")).toMatchObject([
+      {
+        trigger: "citizenship_or_immigration_dmi",
+        summary: "Citizenship DMIs always go to you. The Assistant has not contacted Tomasz.",
+        clientWords: null,
+        suggestedNextStep: "Contact Tomasz yourself about proof of citizenship.",
+      },
+    ]);
+  });
+
+  it("escalates an immigration DMI at open in its own words", async () => {
+    const seeded = store.list("escalations").find((e) => e.clientId === "client-06")!;
+    store.update("escalations", { ...seeded, status: "handled", handledAt: NOW.toISOString() });
+    const dmi = store.list("dmis").find((d) => d.id === "dmi-06")!;
+    store.update("dmis", { ...dmi, type: "immigration" });
+    await runAssistant({ name: "dmi.detected", clientId: "client-06", dmiId: "dmi-06" }, { store, now: () => NOW, model: scriptedModel().client });
+    expect(store.list("escalations").filter((e) => e.clientId === "client-06" && e.status === "open")).toMatchObject([
+      {
+        trigger: "citizenship_or_immigration_dmi",
+        summary: "Immigration DMIs always go to you. The Assistant has not contacted Tomasz.",
+        suggestedNextStep: "Contact Tomasz yourself about proof of immigration status.",
+      },
+    ]);
+    expect(thread("client-06")).toEqual([]);
+  });
+
+  it("raises no second citizenship Escalation while one is open, and never texts that Client, even when they text in", async () => {
+    const model = scriptedReplyModel();
+    const deps = { store, now: () => NOW, model: model.client };
+    await runAssistant({ name: "dmi.detected", clientId: "client-06", dmiId: "dmi-06" }, deps);
+    await runAssistant(receiveClientText(deps, "client-06", "Why do they need this?"), deps);
+    expect(store.list("escalations").filter((e) => e.clientId === "client-06")).toHaveLength(1);
+    expect(thread("client-06").map((m) => m.sender)).toEqual(["client"]);
+    expect(model.calls).toEqual([]);
   });
 });
 
@@ -125,6 +162,14 @@ function scriptedReplyModel() {
             const prompt = String(params.messages[0].content);
             const offered = (id: string) => new RegExp(`<reply id="${id}">([\\s\\S]*?)</reply>`).exec(prompt)?.[1];
             const message = /<client_message[^>]*>([\s\S]*?)<\/client_message>/.exec(prompt)?.[1] ?? "";
+            if (/\b(new job|switched jobs|pay is lower)\b/i.test(message) || /\b(tax|lawyer|legal|should i report)\b/i.test(message)) {
+              const change = /job|pay is lower/i.test(message);
+              await tool("escalate_to_agent").run({
+                trigger: change ? "income_or_application_change" : "advice_or_low_confidence",
+                summary: change ? "Says he changed jobs last month and earns less." : "Asks for tax advice.",
+              });
+              return;
+            }
             const pick = offered("ssn")
               ? "ssn"
               : /later|not now|this weekend/i.test(message)
@@ -251,11 +296,10 @@ describe("runAssistant on client.message", () => {
       expect(links()).toEqual([]);
     });
 
-    it("offers no promise when no nudge is scheduled (an Escalation is open)", async () => {
+    it("offers no promise when no nudge is scheduled (the Client opted out)", async () => {
       firstText();
-      store.add("escalations", {
-        id: "esc-x", clientId: ROSA, trigger: "silence", summary: "s", clientWords: null, suggestedNextStep: null, status: "open", raisedAt: NOW.toISOString(), handledAt: null,
-      });
+      const rosa = store.list("clients").find((c) => c.id === ROSA)!;
+      store.update("clients", { ...rosa, optedOutAt: NOW.toISOString() });
       const model = scriptedReplyModel();
       await reply(ROSA, "later", model);
       expect(String(model.calls[0].messages[0].content)).not.toContain('<reply id="later">');
@@ -290,6 +334,52 @@ describe("runAssistant on client.message", () => {
       expect(links()).toHaveLength(3);
       expect(thread(ROSA)).toHaveLength(texts + 1); // only the Client's own message
       expect(store.list("notifications").slice(notes)).toMatchObject([{ clientId: ROSA, event: "portal_link_limit" }]);
+    });
+  });
+
+  describe("escalating to the Agent", () => {
+    const MARCUS = "client-02"; // income DMI dmi-02, CR-1007
+    const JOB_CHANGE = "I switched jobs last month, so my pay is lower now. Does that matter?";
+    const open = (clientId: string) => store.list("escalations").filter((e) => e.clientId === clientId && e.status === "open");
+
+    it("Marcus's job change: an Escalation with all four parts, and a text that he'll be contacted, with no advice", async () => {
+      const model = scriptedReplyModel();
+      await reply(MARCUS, JOB_CHANGE, model);
+      expect(open(MARCUS)).toMatchObject([
+        {
+          trigger: "income_or_application_change",
+          summary: "Says he changed jobs last month and earns less.",
+          clientWords: JOB_CHANGE,
+          suggestedNextStep: "Call Marcus to review the change and update the projected income on the application together.",
+        },
+      ]);
+      expect(thread(MARCUS).map((m) => [m.sender, m.text])).toEqual([
+        ["client", JOB_CHANGE],
+        ["assistant", "It might. Andrew, your licensed agent, needs to update your application, so I've passed this to him and he'll contact you. Please don't upload anything yet."],
+      ]);
+    });
+
+    it("offers the model no way to write its own words to the Client when it escalates", async () => {
+      const model = scriptedReplyModel();
+      await reply(MARCUS, JOB_CHANGE, model);
+      const escalate = model.calls[0].tools.find((t) => "name" in t && t.name === "escalate_to_agent") as { input_schema: { properties: object } };
+      expect(Object.keys(escalate.input_schema.properties).sort()).toEqual(["summary", "trigger"]);
+    });
+
+    it("an advice request escalates, and the Assistant sends no answer", async () => {
+      const model = scriptedReplyModel();
+      await reply(MARCUS, "Should I report my side gig on my taxes?", model);
+      expect(open(MARCUS)).toMatchObject([{ trigger: "advice_or_low_confidence", clientWords: "Should I report my side gig on my taxes?" }]);
+      expect(thread(MARCUS).map((m) => m.sender)).toEqual(["client"]);
+    });
+
+    it("once escalated, the Assistant does not run for the Client's next text", async () => {
+      const model = scriptedReplyModel();
+      await reply(MARCUS, JOB_CHANGE, model);
+      await reply(MARCUS, "Why do they need this?", model);
+      expect(model.calls).toHaveLength(1);
+      expect(thread(MARCUS).map((m) => m.sender)).toEqual(["client", "assistant", "client"]);
+      expect(open(MARCUS)).toHaveLength(1);
     });
   });
 

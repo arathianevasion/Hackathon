@@ -2,12 +2,16 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { codeAccepted, SESSION_COOKIE, SESSION_VALUE } from "../src/agentSession";
 import { receiveClientText } from "../src/assistant/inbound";
 import { runAssistant } from "../src/assistant/run";
 import { openUploadSession, PORTAL_LINK_BASE } from "../src/portal/portalLink";
 import { comeBackLater } from "../src/portal/comeBackLater";
 import { receiveUpload } from "../src/portal/upload";
+import { handBackToAssistant, sendAgentText } from "../src/assistant/agentThread";
+import { markEscalationHandled } from "../src/assistant/escalations";
 import { createTools } from "../src/assistant/tools";
 import { demoClock, resetDemoClock } from "../src/cadence/demo";
 import { fastForward } from "../src/cadence/engine";
@@ -85,4 +89,39 @@ export async function uploadDocument(formData: FormData) {
 export async function comeBackLaterAction(formData: FormData) {
   await comeBackLater({ store: demoStore(), now: demoClock().now }, String(formData.get("token")));
   revalidatePath("/", "layout");
+}
+
+/** The Agent taps "Mark handled" on the handoff card: the Escalation closes, and with none left open the Assistant resumes. */
+export async function markHandled(formData: FormData) {
+  markEscalationHandled(demoStore(), String(formData.get("escalationId")), demoClock().now());
+  revalidatePath("/", "layout");
+}
+
+/** The Agent sends a text from the message box under the Thread; the Assistant then holds for that Client. */
+export async function sendAgentTextAction(formData: FormData) {
+  const clientId = String(formData.get("clientId"));
+  const typed = String(formData.get("text") ?? "").trim();
+  if (typed === "") return;
+  const result = await sendAgentText({ store: demoStore(), now: demoClock().now }, clientId, typed);
+  revalidatePath("/", "layout");
+  // Nothing was posted: say why on the Agent view rather than failing silently.
+  if (!result.sent) redirect(`/?client=${encodeURIComponent(clientId)}&notsent=${result.reason}`);
+}
+
+/** The Agent taps "Hand back to the Assistant": it resumes for this Client, unless an Escalation is still open. */
+export async function handBack(formData: FormData) {
+  handBackToAssistant({ store: demoStore(), now: demoClock().now }, String(formData.get("clientId")));
+  revalidatePath("/", "layout");
+}
+
+/** Mocked single sign-on: the demo's one-time code starts the Agent's session. */
+export async function signIn(formData: FormData) {
+  if (!codeAccepted(String(formData.get("code") ?? ""))) redirect("/?signin=wrong");
+  (await cookies()).set(SESSION_COOKIE, SESSION_VALUE, { httpOnly: true, sameSite: "lax", path: "/" });
+  redirect("/");
+}
+
+export async function signOut() {
+  (await cookies()).delete(SESSION_COOKIE);
+  redirect("/");
 }

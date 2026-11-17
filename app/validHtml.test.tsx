@@ -13,6 +13,7 @@ import { UploadPage } from "./UploadPage";
 const NOW = new Date();
 let store: Store;
 vi.mock("../src/store/demo", () => ({ demoStore: () => store }));
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: "signed-in" }) }) }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("next/navigation", () => ({ redirect: () => {}, useRouter: () => ({ refresh: () => {} }) }));
 
@@ -47,6 +48,7 @@ const STATES: Record<string, UploadPageState> = {
   later: { kind: "later", ...income, fixes: null },
   submitted: { kind: "submitted", ...income, fixes: null },
   expired: { kind: "expired" },
+  paused: { kind: "paused", agentFirstName: "Andrew" },
   ssn: { kind: "open", ...income, dmiType: "ssn", copy: uploadPageCopy("ssn"), fixes: null },
 };
 

@@ -100,6 +100,8 @@ select:hover { border-color: var(--accent); }
 
 .chip { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-sm); white-space: nowrap; }
 .chip.info { background: var(--info-soft); color: var(--info); }
+.chip.crit { background: var(--crit-soft); color: var(--crit); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
 
 /* ---------- Agent view (variant A) ---------- */
 .page {
@@ -296,3 +298,49 @@ details p { margin-top: 6px; font-size: 13px; }
 .drop .status { width: 100%; text-align: left; }
 .button.later { display: block; width: 100%; padding: 8px 12px; background: transparent; }
 .button.later:hover { background: var(--royal-light-1); }
+
+/* The handoff card for an open Escalation (Agent view prototype, variant A). */
+.handoff { border: 1px solid var(--crit); background: var(--crit-soft); border-radius: var(--radius-md); padding: 12px; display: grid; gap: 8px; margin-bottom: 16px; }
+.handoff .label { color: var(--crit); }
+.handoff p { margin: 0; }
+.handoff .quote { margin: 0; padding-left: 10px; border-left: 3px solid var(--crit); font-style: italic; }
+.handoff form { display: flex; gap: 8px; }
+
+/* The Agent in the Thread: the banner, and the message box under the Thread (Agent view prototype, variant A). */
+.banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 1px solid var(--info); background: var(--info-soft); border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 16px; font-size: 13px; }
+.message-box { display: grid; gap: 8px; margin-top: 12px; }
+.message-box textarea { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line-strong); border-radius: var(--radius-xs); resize: vertical; }
+.message-box button { justify-self: start; }
+.handoff a.button { align-self: center; font-size: 13px; }
+
+/* ---------- Totals, window meter, sign-in (variant A) ---------- */
+.totals { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4); }
+.total {
+  display: grid; gap: 2px; min-width: 130px; padding: var(--space-3) var(--space-4); text-decoration: none; color: var(--fg);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-card);
+}
+.total:hover { border-color: var(--accent); }
+.total[aria-current] { border-color: var(--accent); background: var(--royal-light-1); box-shadow: inset 0 0 0 1px var(--accent); }
+.total .num { font-family: var(--data); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--navy); }
+.total.crit .num { color: var(--crit); }
+.queue .empty { padding: var(--space-4); }
+.button.crm { text-decoration: none; display: inline-block; }
+.window { display: grid; gap: 4px; padding-bottom: var(--space-2); }
+.window .data { font-family: var(--data); font-size: 12px; }
+.meter { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+.meter .fill { display: block; height: 100%; background: var(--accent); }
+.meter .fill.crit { background: var(--crit); }
+.meter .fill.warn { background: var(--warn); }
+.signin { display: grid; place-items: center; min-height: 80dvh; }
+.signin-card {
+  display: grid; gap: var(--space-3); width: min(380px, 100%); padding: var(--space-5);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-raised);
+}
+.signin-card label { display: grid; gap: var(--space-1); }
+.signin-card input {
+  font: inherit; font-family: var(--data); font-size: 16px; letter-spacing: 4px; padding: 8px 10px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-xs); background: var(--surface); color: var(--fg);
+}
+.signin-card input:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-shadow); }
+.signin-card .error { color: var(--crit); font-weight: 600; }
+.signin-card .data { font-family: var(--data); }
