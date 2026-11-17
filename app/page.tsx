@@ -5,7 +5,7 @@ import { demoStore } from "../src/store/demo";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { SESSION_COOKIE, SESSION_VALUE } from "../src/agentSession";
-import { atRisk, filterQueue, parseFilter, QUEUE_FILTERS, queueTotals, windowBar, windowUsedPercent, type QueueFilter } from "../src/queue/totals";
+import { atRisk, filterQueue, parseFilter, QUEUE_FILTERS, queueTotals, windowBar, type QueueFilter } from "../src/queue/totals";
 import type { QueueRow } from "../src/queue/rank";
 import { PHONE_COOKIE, phoneShown } from "../src/phoneSwitch";
 import { assistantTextsAbout } from "../src/assistant/firstText";
@@ -119,6 +119,7 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
   const rows = filterQueue(allRows, filter);
   const totals = queueTotals(allRows);
   const selectedRow = allRows.find((r) => r.clientId === params.client) ?? null;
+  const selectedBar = selectedRow ? windowBar(selectedRow, today) : null;
   /** A link that keeps the selected Client and turns the filter on, or off when it is already on. */
   const totalHref = (f: QueueFilter) => {
     const q = new URLSearchParams();
@@ -255,7 +256,7 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
                 </p>
               </header>
 
-              {selectedRow && (
+              {selectedRow && selectedBar && (
                 <div className="window">
                   <div className="clockline">
                     <span>{daysBetween(selectedRow.noticeDate, selectedRow.deadline)}-day window from the Marketplace notice</span>
@@ -263,20 +264,20 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
                       <span className="big">Resolved</span>
                     ) : (
                       <span>
-                        <span className={selectedRow.daysLeft <= 7 ? "big soon" : "big"}>{daysLeftLabel(selectedRow.daysLeft)}</span>
+                        <span className={selectedBar.tone === "soon" ? "big soon" : "big"}>{daysLeftLabel(selectedRow.daysLeft)}</span>
                         {selectedRow.daysLeft > 0 && " left"}
                       </span>
                     )}
                   </div>
                   <div
-                    className={`bigwin ${windowBar(selectedRow, today).tone}`}
+                    className={`bigwin ${selectedBar.tone}`}
                     role="meter"
                     aria-label="Share of the window used"
                     aria-valuemin={0}
                     aria-valuemax={100}
-                    aria-valuenow={windowUsedPercent(selectedRow.noticeDate, selectedRow.deadline, today)}
+                    aria-valuenow={selectedBar.usedPercent}
                   >
-                    <i style={{ width: `${windowBar(selectedRow, today).usedPercent}%` }} />
+                    <i style={{ width: `${selectedBar.usedPercent}%` }} />
                   </div>
                   <div className="bigwin-ends fig">
                     <span>Notice {shortDate(selectedRow.noticeDate)}</span>
@@ -418,9 +419,9 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
           )}
         </div>
 
-        <div className="phone-col">
+        <aside className="phone-col" aria-label="Client’s phone">
           {!phoneForcedOff && <PhoneSimulator clientId={selected?.id ?? null} messages={thread} browser={selected ? browser : null} />}
-        </div>
+        </aside>
       </Desk>
     </PhoneSwitchProvider>
   );

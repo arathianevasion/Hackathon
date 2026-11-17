@@ -177,4 +177,15 @@ describe("the detail panel", () => {
     expect(html).toContain("Action log");
     expect(html).toContain("Notifications");
   });
+
+  it("gives a resolved Client a full, green window bar whose meter value agrees", async () => {
+    const dmi = store.list("dmis").find((d) => d.status === "resolved")!;
+    store.update("dmis", { ...dmi, deadline: new Date(Date.now() + 40 * 86_400_000).toISOString().slice(0, 10) });
+    const html = await view({ client: dmi.clientId });
+    expect(html).toMatch(/class="bigwin done"[^>]*aria-valuenow="100"/);
+  });
+
+  it("labels the phone column as the Client's phone", async () => {
+    expect(await view({ phone: undefined as never, client: "client-01" })).toMatch(/<aside class="phone-col" aria-label="Client’s phone">/);
+  });
 });

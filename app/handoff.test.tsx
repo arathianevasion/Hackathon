@@ -146,6 +146,7 @@ describe("the Agent in the Thread", () => {
     const html = await view(MARCUS);
     expect(html).not.toContain("Hand back to the AI Client Advocate");
     expect(html).not.toContain("You&#x27;re in the Thread");
+    expect(html).toContain("Agent handed back to the AI Client Advocate");
   });
 
   it("gives an opted-out Client a call note instead of a message box", async () => {
