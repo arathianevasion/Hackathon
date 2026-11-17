@@ -45,7 +45,7 @@ describe("sign-in", () => {
   it("gates the view: no Clients, the code form instead", async () => {
     const html = await view();
     expect(html).toContain("one-time code");
-    expect(html).not.toContain("Your Enrollment Follow-ups");
+    expect(html).not.toContain("Enrollment follow-ups");
     expect(html).not.toContain("Rosa");
   });
 
@@ -54,7 +54,7 @@ describe("sign-in", () => {
     expect(jar.has(SESSION_COOKIE)).toBe(false);
     await expect(signIn(form(DEMO_CODE))).rejects.toThrow("redirect:/");
     expect(jar.get(SESSION_COOKIE)).toBe(SESSION_VALUE);
-    expect(await view()).toContain("Your Enrollment Follow-ups");
+    expect(await view()).toContain("Enrollment follow-ups");
   });
 
   it("shows the error after a wrong code, and sign-out gates the view again", async () => {
@@ -65,8 +65,57 @@ describe("sign-in", () => {
   });
 });
 
+describe("the header", () => {
+  beforeEach(signedIn);
+
+  it("names the product and the Agent", async () => {
+    const html = await view();
+    expect(html).toMatch(/<h1>Integrity Client Advocate<\/h1>/);
+    expect(html).toContain("Andrew");
+  });
+});
+
+describe("the Client's phone switch", () => {
+  beforeEach(signedIn);
+  const shown = async (params: Record<string, string | undefined>) => {
+    const html = await view(params as Record<string, string>);
+    return { html, checked: html.match(/role="switch" aria-checked="(true|false)"/)?.[1], deskOn: /class="desk phone-on"/.test(html) };
+  };
+
+  it("is a switch, on by default, with the phone shown", async () => {
+    const { html, checked, deskOn } = await shown({ phone: undefined, client: "client-01" });
+    expect(checked).toBe("true");
+    expect(deskOn).toBe(true);
+    expect(html).toContain("Client phone simulator");
+    expect(html).toContain("Client’s phone");
+  });
+
+  it("stays off after a reload once this browser switched it off", async () => {
+    jar.set("client-phone", "off");
+    const { checked, deskOn } = await shown({ phone: undefined, client: "client-01" });
+    expect(checked).toBe("false");
+    expect(deskOn).toBe(false);
+  });
+
+  it("is off with ?phone=off, and the simulator isn't rendered", async () => {
+    const { html, checked, deskOn } = await shown({ phone: "off", client: "client-01" });
+    expect(checked).toBe("false");
+    expect(deskOn).toBe(false);
+    expect(html).not.toContain("Client phone simulator");
+  });
+});
+
 describe("the totals", () => {
   beforeEach(signedIn);
+
+  it("are filter chips with the counts the stat cards had", async () => {
+    const html = await view();
+    const counts = Object.fromEntries([...html.matchAll(/class="filter[^"]*"[^>]*>([^<]+)<b>(\d+)<\/b>/g)].map((m) => [m[1].trim(), Number(m[2])]));
+    const open = store.list("escalations").filter((e) => e.status === "open");
+    expect(Object.keys(counts)).toEqual(["Needs you", "Due soon", "Submitted", "Resolved"]);
+    expect(counts["Needs you"]).toBe(new Set(open.map((e) => e.clientId)).size);
+    expect(counts["Resolved"]).toBe(store.list("dmis").filter((d) => d.status === "resolved").length);
+  });
 
   it("show the counts as links that filter the queue", async () => {
     const html = await view();
@@ -98,6 +147,23 @@ describe("the queue", () => {
     store.update("dmis", { ...days, deadline: new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10) });
     expect(await view()).toContain("At risk");
   });
+
+  it("gives each row a window bar, red when the deadline is close and green once resolved", async () => {
+    const dmi = store.list("dmis").find((d) => d.status === "open")!;
+    store.update("dmis", { ...dmi, deadline: new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10) });
+    const html = await view();
+    expect(html).toMatch(/class="win soon"><i style="width:\d+%"><\/i>/);
+    expect(html).toContain('class="win done"><i style="width:100%"></i>');
+  });
+
+  it("lists resolved Clients under a Resolved label", async () => {
+    const html = await view();
+    const [open, resolved] = html.split('class="group"');
+    expect(resolved).toBeDefined();
+    const name = store.list("clients").find((c) => c.id === store.list("dmis").find((d) => d.status === "resolved")!.clientId)!;
+    expect(resolved).toContain(`${name.firstName} ${name.lastName}`);
+    expect(open).not.toContain(`${name.firstName} ${name.lastName}`);
+  });
 });
 
 describe("the detail panel", () => {
@@ -110,5 +176,16 @@ describe("the detail panel", () => {
     expect(html).toContain("View CRM record");
     expect(html).toContain("Action log");
     expect(html).toContain("Notifications");
+  });
+
+  it("gives a resolved Client a full, green window bar whose meter value agrees", async () => {
+    const dmi = store.list("dmis").find((d) => d.status === "resolved")!;
+    store.update("dmis", { ...dmi, deadline: new Date(Date.now() + 40 * 86_400_000).toISOString().slice(0, 10) });
+    const html = await view({ client: dmi.clientId });
+    expect(html).toMatch(/class="bigwin done"[^>]*aria-valuenow="100"/);
+  });
+
+  it("labels the phone column as the Client's phone", async () => {
+    expect(await view({ phone: undefined as never, client: "client-01" })).toMatch(/<aside class="phone-col" aria-label="Client’s phone">/);
   });
 });

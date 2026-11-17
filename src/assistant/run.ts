@@ -209,7 +209,7 @@ async function escalateAtOpen({ kind, proof }: { kind: string; proof: string }, 
   await toolsFor({ store, now }).escalate_to_agent({
     clientId: client.id,
     trigger: "citizenship_or_immigration_dmi",
-    summary: `${kind} DMIs always go to you. The Assistant has not contacted ${client.firstName}.`,
+    summary: `${kind} DMIs always go to you. The AI Client Advocate has not contacted ${client.firstName}.`,
     clientWords: null,
     suggestedNextStep: `Contact ${client.firstName} yourself about ${proof}.`,
   });
@@ -225,7 +225,7 @@ const REPLY_TRIGGERS = {
   income_or_application_change: (firstName: string) =>
     `Call ${firstName} to review the change and update the projected income on the application together.`,
   advice_or_low_confidence: (firstName: string) =>
-    `Call ${firstName} about their question. The Assistant gave no answer.`,
+    `Call ${firstName} about their question. The AI Client Advocate gave no answer.`,
   client_asked_for_agent: (firstName: string) => `Call ${firstName} about their question, which isn't about their DMI.`,
 } satisfies Partial<Record<EscalationTrigger, (firstName: string) => string>>;
 type ReplyTrigger = keyof typeof REPLY_TRIGGERS;

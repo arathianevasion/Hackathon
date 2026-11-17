@@ -8,7 +8,7 @@ const lato = Lato({ subsets: ["latin"], weight: ["400", "700", "900"], variable:
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "DMI Assistant POC",
+  title: "Integrity Client Advocate",
   description: "Synthetic data only",
 };
 
