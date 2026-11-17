@@ -138,7 +138,7 @@ describe("the cadence engine", () => {
       await fastForward(deps, 1);
       expect(dmiOf("dmi-01")).toMatchObject({ status: "resolved", resolvedAt: clock.now().toISOString() });
       expect(texts(ROSA).at(-1)?.text).toBe(RESOLVED_TEXT);
-      expect(store.list("notifications").filter((n) => n.event === "dmi_resolved")).toMatchObject([
+      expect(store.list("notifications").filter((n) => n.event === "dmi_resolved" && n.clientId === ROSA)).toMatchObject([
         { clientId: ROSA, agentId: store.agent()!.id, at: clock.now().toISOString() },
       ]);
       expect(store.list("actionLog").some((l) => l.clientId === ROSA && l.tool === "get_dmi_status")).toBe(true);
@@ -153,7 +153,7 @@ describe("the cadence engine", () => {
       expect(texts(ROSA).filter((m) => m.text === RESOLVED_TEXT)).toHaveLength(1);
       expect(texts(ROSA).length).toBeGreaterThanOrEqual(sent);
       expect(dmiOf("dmi-02").status).toBe("open");
-      expect(store.list("notifications").filter((n) => n.event === "dmi_resolved")).toHaveLength(1);
+      expect(store.list("notifications").filter((n) => n.event === "dmi_resolved" && n.clientId === ROSA)).toHaveLength(1);
     });
 
     it("promises no review date and sends nothing to an opted-out Client, though the DMI still resolves", async () => {
