@@ -56,7 +56,7 @@ export function uploadPageCopy(type: DmiType): UploadPageCopy {
 /** What the in-phone browser shows for a Portal link: never more than the first name, DMI type and due date. */
 export type UploadPageState =
   | {
-      kind: "open" | "submitted";
+      kind: "open" | "submitted" | "later";
       firstName: string;
       dmiType: DmiType;
       due: string;
@@ -71,14 +71,15 @@ export type UploadPageState =
 /** The upload page for a Portal link token, inside its upload session; anything else reads as expired. */
 export function uploadPageState(store: Store, token: string, at: Date): UploadPageState {
   const session = uploadSession(store, `${PORTAL_LINK_BASE}${token}`, at);
-  if (!session.ok) return { kind: "expired" };
-  const dmi = store.list("dmis").find((d) => d.id === session.link.dmiId);
-  const client = store.list("clients").find((c) => c.id === session.link.clientId);
+  const link = session.ok ? session.link : store.list("portalLinks").find((l) => l.url === `${PORTAL_LINK_BASE}${token}` && l.closedAt);
+  if (!link) return { kind: "expired" };
+  const dmi = store.list("dmis").find((d) => d.id === link.dmiId);
+  const client = store.list("clients").find((c) => c.id === link.clientId);
   if (!dmi || !client) return { kind: "expired" };
   const uploads = store.list("documents").filter((d) => d.dmiId === dmi.id);
   const latest = uploads.at(-1);
   return {
-    kind: dmi.status === "documents_submitted" ? "submitted" : "open",
+    kind: link.closedAt ? "later" : dmi.status === "documents_submitted" ? "submitted" : "open",
     firstName: client.firstName,
     dmiType: dmi.type,
     due: dueDateLabel(dmi.deadline),

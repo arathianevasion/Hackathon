@@ -42,3 +42,14 @@ export function replyTexts(input: { agentFirstName: string; dmiType: DmiType; de
     ssn: open("Please don't send your Social Security number by text. The Marketplace needs a document, and the link shows which ones work."),
   };
 }
+
+/**
+ * The promise after "I'll come back later", by text or from the page (variant D,
+ * Ada's wording): how to get a fresh link, and the day the scheduled nudge goes out.
+ */
+export function laterText(checkInOn: IsoDate): string {
+  return `No rush. When you find it, text me "ready" and I'll send a fresh link. If I haven't heard from you, I'll check in on ${dueDateLabel(checkInOn)}.`;
+}
+
+/** The text that sends a fresh link once the Client says they have the document (variant D); the link goes where the slot is. */
+export const READY_TEXT = `Great. Here's a new link, good for 3 days: ${PORTAL_LINK_SLOT}`;

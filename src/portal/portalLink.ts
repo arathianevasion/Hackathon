@@ -29,6 +29,8 @@ export interface IssuedPortalLink extends PortalLink {
   issuedAt: IsoDateTime;
   /** When the link was opened; a used link never opens again. */
   usedAt: IsoDateTime | null;
+  /** When the Client tapped "I'll come back later"; a closed link never opens or takes an upload again. */
+  closedAt?: IsoDateTime | null;
 }
 
 /** How many Portal links this Client was sent in the 24 hours up to `at`. */
@@ -55,12 +57,13 @@ export function issuePortalLink(store: Store, clientId: ClientId, dmiId: string,
 
 export type Redemption =
   | { ok: true; link: IssuedPortalLink }
-  | { ok: false; reason: "unknown" | "used" | "expired" };
+  | { ok: false; reason: "unknown" | "used" | "closed" | "expired" };
 
 /** Opens a Portal link by its url: once only, and only before it expires. */
 export function redeemPortalLink(store: Store, url: string, at: Date): Redemption {
   const link = store.list("portalLinks").find((l) => l.url === url);
   if (!link) return { ok: false, reason: "unknown" };
+  if (link.closedAt) return { ok: false, reason: "closed" };
   if (link.usedAt !== null) return { ok: false, reason: "used" };
   if (Date.parse(link.expiresAt) <= at.getTime()) return { ok: false, reason: "expired" };
   const used = { ...link, usedAt: at.toISOString() };
@@ -73,7 +76,7 @@ export const UPLOAD_SESSION_MINUTES = 30;
 
 export type UploadSession =
   | { ok: true; link: IssuedPortalLink }
-  | { ok: false; reason: "unknown" | "not_opened" | "used" | "expired" };
+  | { ok: false; reason: "unknown" | "not_opened" | "used" | "closed" | "expired" };
 
 /**
  * The upload session a Portal link opened, if it is still running: from the
@@ -82,6 +85,7 @@ export type UploadSession =
 export function uploadSession(store: Store, url: string, at: Date): UploadSession {
   const link = store.list("portalLinks").find((l) => l.url === url);
   if (!link) return { ok: false, reason: "unknown" };
+  if (link.closedAt) return { ok: false, reason: "closed" };
   if (link.usedAt === null) return { ok: false, reason: Date.parse(link.expiresAt) <= at.getTime() ? "expired" : "not_opened" };
   if (at.getTime() >= Date.parse(link.usedAt) + UPLOAD_SESSION_MINUTES * 60_000) return { ok: false, reason: "used" };
   return { ok: true, link };

@@ -37,3 +37,8 @@ export function inQuietHours(at: Date, hours: QuietHours): boolean {
   const local = (at.getUTCHours() + hours.utcOffsetHours + 24) % 24;
   return local < hours.openHour || local >= hours.closeHour;
 }
+
+/** The Clients' local calendar date at `at`, as an ISO date. */
+export function localDate(at: Date, hours: QuietHours): IsoDate {
+  return new Date(at.getTime() + hours.utcOffsetHours * 3_600_000).toISOString().slice(0, 10);
+}
