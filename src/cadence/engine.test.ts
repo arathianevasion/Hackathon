@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTools } from "../assistant/tools";
 import { openStore, type Store } from "../store/store";
 import { createClock } from "./clock";
-import { fastForward, runDueCadence, type CadenceDeps } from "./engine";
+import { fastForward, nextNudgeAt, runDueCadence, type CadenceDeps } from "./engine";
 
 const T0 = new Date("2026-11-16T15:00:00Z"); // 10:00 local, inside the texting window
 const DAY = 86_400_000;
@@ -121,5 +121,41 @@ describe("the cadence engine", () => {
     expect(fired.map((f) => f.step)).toEqual(["nudge", "escalate"]);
     expect(texts(MARCUS)).toHaveLength(1);
     expect(escalations(MARCUS)).toHaveLength(1);
+  });
+
+  it("skips the nudge, without failing the run, when the Client already had 3 Portal links in 24 hours", async () => {
+    firstText(ROSA);
+    for (let i = 0; i < 3; i++) await deps.tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
+    clock.set(new Date(T0.getTime() + DAY - 60_000)); // the links are still inside 24 hours
+    const fired = await afterDays(0);
+    expect(fired).toEqual([]);
+    expect(texts(ROSA)).toHaveLength(0);
+  });
+
+  describe("nextNudgeAt", () => {
+    it("is the moment the engine's nudge fires, counted from the last contact", async () => {
+      firstText(ROSA);
+      const due = nextNudgeAt(store, ROSA)!;
+      expect(due.toISOString()).toBe("2026-11-17T15:00:00.000Z");
+      expect(await afterDays(0.9)).toEqual([]);
+      clock.set(due);
+      expect(await runDueCadence(deps)).toMatchObject([{ step: "nudge" }]);
+    });
+
+    it("waits for the texting window, as the engine does", () => {
+      firstText(ROSA, new Date("2026-11-16T23:00:00Z")); // 18:00 local
+      store.add("messages", { id: "c-1", clientId: ROSA, sender: "client", sentAt: "2026-11-17T02:30:00.000Z", text: "later" }); // 21:30 local
+      expect(nextNudgeAt(store, ROSA)!.toISOString()).toBe("2026-11-18T13:00:00.000Z"); // 08:00 local, a day after the message
+    });
+
+    it("moves to the Client's later message, and is null when no nudge is scheduled", async () => {
+      firstText(ROSA);
+      store.add("messages", { id: "c-1", clientId: ROSA, sender: "client", sentAt: "2026-11-16T20:00:00.000Z", text: "ready" });
+      expect(nextNudgeAt(store, ROSA)!.toISOString()).toBe("2026-11-17T20:00:00.000Z");
+      expect(nextNudgeAt(store, JUNE)).toBeNull();
+      clock.set(new Date("2026-11-17T20:00:00Z"));
+      await runDueCadence(deps);
+      expect(nextNudgeAt(store, ROSA)).toBeNull();
+    });
   });
 });
