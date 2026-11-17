@@ -147,6 +147,7 @@ export type EscalationTrigger =
   | "citizenship_or_immigration_dmi"
   | "advice_or_low_confidence"
   | "insufficient_twice"
+  | "name_or_ssn_mismatch"
   | "suspected_fraud"
   | "silence"
   /** The Client said yes to having the Agent contact them about a topic unrelated to their DMI; the only trigger that does not pause the Assistant. */

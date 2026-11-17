@@ -6,7 +6,7 @@ import { startAutoRefresh } from "../src/autoRefresh";
 
 const REFRESH_MS = 2000;
 
-/** A refresh must not touch a reply being typed or an upload in progress. */
+/** A refresh must not touch a reply being typed, a reply being sent (the typing bubble) or an upload in progress. */
 function pageIsBusy(): boolean {
   const field = document.activeElement;
   const typing = (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) && field.type !== "file" && field.value !== "";

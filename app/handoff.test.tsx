@@ -63,6 +63,13 @@ describe("the handoff card", () => {
     expect(html).not.toContain("client_asked_for_agent");
   });
 
+  it("labels a name or SSN mismatch Escalation readably", async () => {
+    const tools = createTools({ store, now: () => new Date(), extract: () => Promise.reject(new Error("none")) });
+    await tools.escalate_to_agent({ clientId: MARCUS, trigger: "name_or_ssn_mismatch", summary: "s", clientWords: null, suggestedNextStep: "Call Marcus to confirm whose document it is." });
+    const html = await view(MARCUS);
+    expect(html).toContain("Name or SSN doesn&#x27;t match the application");
+  });
+
   it("Mark handled closes the Escalation, and the card goes", async () => {
     const escalationId = await escalateMarcus();
     const form = new FormData();

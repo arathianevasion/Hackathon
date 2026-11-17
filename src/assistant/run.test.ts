@@ -1,3 +1,4 @@
+import { sendAgentText } from "./agentThread";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExtractedFields } from "../documents/extract";
 import { issuePortalLink, openUploadSession } from "../portal/portalLink";
@@ -743,9 +744,58 @@ describe("runAssistant on document.uploaded", () => {
     });
   });
 
-  it("does not send fixes for a name mismatch with the application: that is not a retake", async () => {
-    await rosaUploads(scriptedUploadModel({ ...FULL_STUB, name: "Someone Else" }));
-    expect(afterFirst()).toEqual([]);
+  describe("a name or SSN mismatch", () => {
+    const MISMATCH = { ...FULL_STUB, name: "Someone Else" };
+    const MISMATCH_TEXT =
+      "I checked your document. 1 thing to fix:\n1. This document doesn't appear to be yours: the name or Social Security number doesn't match your application.\n\nUpload one of the documents listed below that shows your name. Same link.";
+    const open = () => store.list("escalations").filter((e) => e.clientId === ROSA && e.status === "open");
+
+    it("gets the mismatch fixes by text, naming nobody, and no Escalation", async () => {
+      await rosaUploads(scriptedUploadModel(MISMATCH));
+      expect(afterFirst().map((m) => m.text)).toEqual([MISMATCH_TEXT]);
+      expect(open()).toEqual([]);
+    });
+
+    it("gets the same feedback on the second upload, still with no Escalation", async () => {
+      await rosaUploads(scriptedUploadModel(MISMATCH));
+      await rosaUploads(scriptedUploadModel(MISMATCH));
+      expect(afterFirst().map((m) => m.text)).toEqual([MISMATCH_TEXT, MISMATCH_TEXT]);
+      expect(open()).toEqual([]);
+    });
+
+    it("holds the text when the Client has opted out", async () => {
+      const rosa = store.list("clients").find((c) => c.id === ROSA)!;
+      store.update("clients", { ...rosa, optedOutAt: NOW.toISOString() });
+      await rosaUploads(scriptedUploadModel(MISMATCH));
+      expect(afterFirst()).toEqual([]);
+    });
+
+    it("holds the text while an Agent is in the Thread", async () => {
+      await sendAgentText({ store, now: () => NOW }, ROSA, "Hi, I'll sort this out.");
+      const before = afterFirst().length;
+      await rosaUploads(scriptedUploadModel(MISMATCH));
+      expect(afterFirst()).toHaveLength(before);
+    });
+
+    it("escalates name_or_ssn_mismatch on the third failed upload, with no text", async () => {
+      await rosaUploads(scriptedUploadModel(MISMATCH));
+      await rosaUploads(scriptedUploadModel(MISMATCH));
+      await rosaUploads(scriptedUploadModel(MISMATCH));
+      expect(afterFirst()).toHaveLength(2);
+      expect(open()).toHaveLength(1);
+      expect(open()[0]).toMatchObject({ trigger: "name_or_ssn_mismatch" });
+      expect(open()[0].summary).toContain("doesn't match the application");
+      expect(open()[0].suggestedNextStep).toBe("Call Rosa to confirm whose document it is.");
+      expect(JSON.stringify(open())).not.toContain("Someone Else");
+    });
+
+    it("counts a mismatch among other failures: the third failed upload escalates as a mismatch", async () => {
+      await rosaUploads(scriptedUploadModel(MISMATCH));
+      await rosaUploads(scriptedUploadModel({ ...FULL_STUB, cropped: true }));
+      expect(open()).toEqual([]);
+      await rosaUploads(scriptedUploadModel({ ...FULL_STUB, cropped: true }));
+      expect(open().map((e) => e.trigger)).toEqual(["name_or_ssn_mismatch"]);
+    });
   });
 
   it("refuses submit_documents even when the model calls it on an insufficient result", async () => {

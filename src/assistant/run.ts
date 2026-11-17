@@ -3,7 +3,7 @@ import type { BetaToolRunnerParams } from "@anthropic-ai/sdk/resources/beta/mess
 import { z } from "zod";
 import type { Client, ClientId, DmiType, DomainEvent, Escalation, EscalationTrigger, Message, ToolName } from "../contract";
 import { describeExtracted } from "../documents/checks";
-import { guidanceFor, guidanceText } from "../documents/guidance";
+import { guidanceFor, guidanceText, isMismatch } from "../documents/guidance";
 import { extractFields, FALLBACK_BETA, type ExtractionClient } from "../documents/extract";
 import type { Store } from "../store/store";
 import { assistantTextsAbout, firstText, PORTAL_LINK_SLOT } from "./firstText";
@@ -153,8 +153,9 @@ async function followUpAmbiguous(event: Extract<DomainEvent, { name: "document.u
  * What follows an insufficient result, in code: the model only ran the check
  * (ADR 0001). The first insufficient upload for a DMI gets the fixes in a text
  * written from the failed rules; the second raises an Escalation, with no text.
- * A Document that failed on who it belongs to is not sent back: it is left for
- * the Agent (finding on #44).
+ * A name or SSN mismatch gets the same fixes (naming nobody) and the Client may
+ * upload again: once any failed upload for the DMI was a mismatch, the Escalation
+ * comes on the third failed upload instead, as `name_or_ssn_mismatch`.
  */
 async function followUpInsufficient(event: Extract<DomainEvent, { name: "document.uploaded" }>, { store, now }: RunDeps): Promise<void> {
   const doc = store.list("documents").find((d) => d.id === event.documentId);
@@ -162,23 +163,33 @@ async function followUpInsufficient(event: Extract<DomainEvent, { name: "documen
   const guidance = guidanceFor(doc.precheck.reasons);
   if (!guidance) return;
   const tools = toolsFor({ store, now });
-  const insufficient = store
-    .list("documents")
-    .filter((d) => d.dmiId === event.dmiId && d.precheck.result === "insufficient" && guidanceFor(d.precheck.reasons) !== null);
+  const insufficient = store.list("documents").filter((d) => d.dmiId === event.dmiId && d.precheck.result === "insufficient");
+  const mismatch = insufficient.some((d) => isMismatch(d.precheck.reasons));
   // Once a pausing Escalation is open the Assistant is paused for this Client: nothing more goes out.
   if (pausingEscalationOpen(store, event.clientId)) return;
-  if (insufficient.length < 2) {
+  if (insufficient.length < (mismatch ? 3 : 2)) {
     await tools.send_text({ clientId: event.clientId, text: guidanceText(guidance) });
     return;
   }
   const client = store.list("clients").find((c) => c.id === event.clientId);
   const dmi = store.list("dmis").find((d) => d.id === event.dmiId);
   if (!client || !dmi) throw new Error(`No DMI ${event.dmiId} for Client ${event.clientId}`);
+  const clientWords = store.list("messages").filter((m) => m.clientId === event.clientId && m.sender === "client").at(-1)?.text ?? null;
+  if (mismatch) {
+    await tools.escalate_to_agent({
+      clientId: event.clientId,
+      trigger: "name_or_ssn_mismatch",
+      summary: `${insufficient.length} uploads for the ${dmi.type} DMI were insufficient, and at least one showed a name or SSN that doesn't match the application.`,
+      clientWords,
+      suggestedNextStep: `Call ${client.firstName} to confirm whose document it is.`,
+    });
+    return;
+  }
   await tools.escalate_to_agent({
     clientId: event.clientId,
     trigger: "insufficient_twice",
     summary: `Two uploads for the ${dmi.type} DMI were insufficient. The second: ${doc.precheck.reasons.join("; ")}.`,
-    clientWords: store.list("messages").filter((m) => m.clientId === event.clientId && m.sender === "client").at(-1)?.text ?? null,
+    clientWords,
     suggestedNextStep: `Call ${client.firstName} to help get a document that passes, or ask the Marketplace for more time.`,
   });
 }
