@@ -23,6 +23,8 @@ const NOTIFICATION_LABEL: Record<NotificationEvent, string> = {
   documents_submitted: "Documents submitted to the Marketplace",
   dmi_resolved: "DMI resolved",
   portal_link_limit: "3 Portal links sent in 24 hours",
+  client_came_back_by_text: "Client texted back after a silence Escalation. The Escalation is closed",
+  client_came_back_by_upload: "Client uploaded a document after a silence Escalation. The Escalation is closed",
 };
 
 /** The handoff card's trigger line, worded as in the Agent view prototype, variant A. */
