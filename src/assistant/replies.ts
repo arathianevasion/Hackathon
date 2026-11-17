@@ -7,6 +7,10 @@ export const QUIET_DAYS_FOR_DISCLOSURE = 7;
 /** The mask `maskSsns` leaves behind. */
 export const SSN_MASK = /•••-••-\d{4}/;
 
+/** The one question a Client gets when the income on their Document is far from the income on their application. Fixed wording: no amounts, no advice. */
+export const CLARIFYING_QUESTION =
+  "Thanks, I got your document. The income it shows looks different from the income on your application. Can you tell me why? For example, did your pay change, or do you have more than one job?";
+
 /** The AI disclosure, as the first text words it (variant D). */
 export function disclosure(agentFirstName: string): string {
   return `I'm the AI assistant for your insurance agent, ${agentFirstName}.`;

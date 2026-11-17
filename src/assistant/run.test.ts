@@ -7,6 +7,7 @@ import { createClock } from "../cadence/clock";
 import { fastForward, nextNudgeAt } from "../cadence/engine";
 import { receiveClientText } from "./inbound";
 import { createTools } from "./tools";
+import { CLARIFYING_QUESTION } from "./replies";
 import { confirmationText, runAssistant, type ModelClient, type RunnerParams } from "./run";
 
 const NOW = new Date("2026-11-16T15:00:00Z");
@@ -518,6 +519,43 @@ describe("runAssistant on document.uploaded", () => {
     await rosaUploads(scriptedUploadModel(CROPPED));
     expect(store.list("escalations").filter((e) => e.clientId === ROSA)).toHaveLength(1);
     expect(afterFirst()).toHaveLength(texts);
+  });
+
+  describe("an ambiguous income result", () => {
+    const OFF: ExtractedFields = { ...FULL_STUB, ssn: "900-01-4471", pay: { amount: 3000, frequency: "biweekly" } };
+    const open = () => store.list("escalations").filter((e) => e.clientId === ROSA && e.status === "open" && e.trigger === "insufficient_twice");
+
+    it("asks exactly one clarifying question, with no amounts, and submits nothing", async () => {
+      const event = await rosaUploads(scriptedUploadModel(OFF));
+      expect(store.list("documents").find((d) => d.id === event.documentId)!.precheck.result).toBe("ambiguous");
+      expect(store.list("dmis").find((d) => d.id === "dmi-01")!.status).toBe("open");
+      expect(afterFirst()).toHaveLength(1);
+      expect(afterFirst()[0].text).toBe(CLARIFYING_QUESTION);
+      expect(open()).toEqual([]);
+    });
+
+    it("escalates with the extracted fields, SSN masked to the last 4, when it is still ambiguous, and asks nothing more", async () => {
+      await rosaUploads(scriptedUploadModel(OFF));
+      await rosaUploads(scriptedUploadModel(OFF));
+      expect(afterFirst()).toHaveLength(1);
+      expect(open()).toHaveLength(1);
+      const { summary } = open()[0];
+      expect(summary).toContain("still ambiguous after one question");
+      expect(summary).toContain("pay stub");
+      expect(summary).toContain("Rosa Delgado-Finch");
+      expect(summary).toContain("3000 biweekly");
+      expect(summary).toContain("•••-••-4471");
+      expect(summary).not.toContain("900-01");
+      expect(JSON.stringify([store.list("documents"), store.list("actionLog"), store.list("escalations")])).not.toContain("900-01");
+      expect(store.list("actionLog").at(-1)).toMatchObject({ tool: "escalate_to_agent" });
+    });
+
+    it("answers a sufficient document after the question normally", async () => {
+      await rosaUploads(scriptedUploadModel(OFF));
+      const event = await rosaUploads(scriptedUploadModel(FULL_STUB));
+      expect(store.list("documents").find((d) => d.id === event.documentId)).toMatchObject({ precheck: { result: "sufficient" }, submission: "submitted" });
+      expect(open()).toEqual([]);
+    });
   });
 
   it("does not send fixes for a name mismatch with the application: that is not a retake", async () => {

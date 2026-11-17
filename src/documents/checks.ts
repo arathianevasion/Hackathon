@@ -5,7 +5,7 @@ import {
   ALLOWED_MEDIA_TYPES,
   CURRENT_WITHIN_DAYS,
   dmiRules,
-  INCOME_MISMATCH_THRESHOLD,
+  incomeMismatchThreshold,
   MAX_FILE_BYTES,
   type CheckNumber,
   type RequiredField,
@@ -20,6 +20,8 @@ export interface JudgeInput {
   /** What the Client attested on their Marketplace application. */
   application: { attestedAnnualIncome: number; ssn: string };
   today: IsoDate;
+  /** A share of attested income; defaults to the configured `incomeMismatchThreshold()`. */
+  incomeMismatchThreshold?: number;
 }
 
 export interface Judgement {
@@ -93,8 +95,9 @@ export function judgeDocument(input: JudgeInput): Judgement {
         if (input.dmiType === "income") {
           const annual = annualized(fields);
           const attested = input.application.attestedAnnualIncome;
-          if (annual !== null && Math.abs(annual - attested) / attested > INCOME_MISMATCH_THRESHOLD) {
-            fail(6, `Annualized income is more than ${INCOME_MISMATCH_THRESHOLD * 100}% from the income on the application`);
+          const threshold = input.incomeMismatchThreshold ?? incomeMismatchThreshold();
+          if (annual !== null && Math.abs(annual - attested) / attested > threshold) {
+            fail(6, `Annualized income is more than ${Math.round(threshold * 1000) / 10}% from the income on the application`);
           }
         } else if (fields.ssn !== null && digits(fields.ssn) !== digits(input.application.ssn)) {
           fail(6, `${REASON.ssnMismatchPrefix}${digits(fields.ssn).slice(-4)} does not match the application`);
@@ -146,4 +149,23 @@ function sameName(printed: string, client: { firstName: string; lastName: string
 
 function digits(s: string): string {
   return s.replace(/\D/g, "");
+}
+
+/**
+ * The fields the Agent is shown on an Escalation for an ambiguous Document:
+ * what was extracted, with the SSN cut to its last 4. Never the file itself.
+ */
+export function describeExtracted(fields: ExtractedFields): string {
+  const parts: [string, string | number | null][] = [
+    ["Document", fields.documentType],
+    ["Name", fields.name],
+    ["SSN", fields.ssn === null ? null : `•••-••-${digits(fields.ssn).slice(-4)}`],
+    ["Pay", fields.pay ? `${fields.pay.amount} ${fields.pay.frequency}` : null],
+    ["Annual income", fields.annualIncome],
+    ["Pay period", fields.payPeriodStart && fields.payPeriodEnd ? `${fields.payPeriodStart} to ${fields.payPeriodEnd}` : null],
+    ["Pay date", fields.payDate],
+    ["Tax year", fields.taxYear],
+    ["Employer", fields.employer],
+  ];
+  return parts.filter(([, v]) => v !== null).map(([k, v]) => `${k}: ${v}`).join("; ");
 }

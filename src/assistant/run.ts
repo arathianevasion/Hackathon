@@ -2,12 +2,14 @@ import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaToolRunnerParams } from "@anthropic-ai/sdk/resources/beta/messages";
 import { z } from "zod";
 import type { Client, ClientId, DmiType, DomainEvent, EscalationTrigger, Message, ToolName } from "../contract";
+import { describeExtracted } from "../documents/checks";
 import { guidanceFor, guidanceText } from "../documents/guidance";
 import { extractFields, FALLBACK_BETA, type ExtractionClient } from "../documents/extract";
 import type { Store } from "../store/store";
 import { assistantTextsAbout, firstText, PORTAL_LINK_SLOT } from "./firstText";
 import { isPaused } from "./escalations";
-import { applicationChangeText, QUIET_DAYS_FOR_DISCLOSURE, quietDays, replyTexts, SSN_MASK } from "./replies";
+import { optKeyword } from "./optOut";
+import { applicationChangeText, CLARIFYING_QUESTION, QUIET_DAYS_FOR_DISCLOSURE, quietDays, replyTexts, SSN_MASK } from "./replies";
 import { createTools } from "./tools";
 import { nextNudgeAt } from "../cadence/engine";
 import { localDate, QUIET_HOURS } from "../cadence/schedule";
@@ -51,6 +53,8 @@ export async function runAssistant(event: DomainEvent, deps: RunDeps): Promise<v
   if (event.name === "dmi.detected") return openDmi(event, deps);
   // escalate_to_agent pauses the Assistant for this Client until the Agent marks the Escalation handled.
   if (isPaused(deps.store, event.clientId)) return;
+  // STOP and START were applied when the text arrived (receiveClientText); the Assistant sends no reply to either.
+  if (event.name === "client.message" && optKeyword(deps.store.list("messages").find((m) => m.id === event.messageId)?.text ?? "")) return;
   if (event.name === "client.message") return answerClient(event, deps);
   if (event.name === "document.uploaded") return checkUpload(event, deps);
   throw new Error(`The Assistant does not handle ${event.name} yet`);
@@ -90,7 +94,8 @@ async function openDmi(event: Extract<DomainEvent, { name: "dmi.detected" }>, de
  * A Client uploaded a Document: the Assistant runs the check, and only a
  * sufficient result goes on to the mocked Marketplace and a confirmation text.
  * An insufficient one gets every fix texted, or an Escalation on the second
- * (`followUpInsufficient`). Ambiguous uploads stop here for now (#19).
+ * (`followUpInsufficient`). An ambiguous one gets one question, then an Escalation
+ * (`followUpAmbiguous`).
  */
 async function checkUpload(event: Extract<DomainEvent, { name: "document.uploaded" }>, deps: RunDeps): Promise<void> {
   const doc = deps.store.list("documents").find((d) => d.id === event.documentId && d.dmiId === event.dmiId);
@@ -108,6 +113,39 @@ async function checkUpload(event: Extract<DomainEvent, { name: "document.uploade
   ].join("\n");
   await runModel(event.clientId, prompt, deps, ["check_consent", "precheck_document", "submit_documents", "send_text"]);
   await followUpInsufficient(event, deps);
+  await followUpAmbiguous(event, deps);
+}
+
+/**
+ * What follows an ambiguous result (income only), in code: the first ambiguous
+ * Document for a DMI gets one clarifying question in fixed wording; if a later
+ * one is still ambiguous, the Escalation carries the extracted fields (SSN
+ * masked) and nothing more goes to the Client.
+ */
+async function followUpAmbiguous(event: Extract<DomainEvent, { name: "document.uploaded" }>, { store, now, model }: RunDeps): Promise<void> {
+  const doc = store.list("documents").find((d) => d.id === event.documentId);
+  if (doc?.precheck.result !== "ambiguous") return;
+  if (store.list("escalations").some((e) => e.clientId === event.clientId && e.status === "open")) return;
+  const tools = toolsFor({ store, now });
+  const ambiguous = store.list("documents").filter((d) => d.dmiId === event.dmiId && d.precheck.result === "ambiguous");
+  if (ambiguous.length < 2) {
+    await tools.send_text({ clientId: event.clientId, text: CLARIFYING_QUESTION });
+    return;
+  }
+  const client = store.list("clients").find((c) => c.id === event.clientId);
+  const dmi = store.list("dmis").find((d) => d.id === event.dmiId);
+  if (!client || !dmi) throw new Error(`No DMI ${event.dmiId} for Client ${event.clientId}`);
+  // The fields are not stored (the contract has no place for them): read the Document again, in code, for the Agent.
+  const file = store.list("documentFiles").find((f) => f.id === doc.id);
+  if (!file) throw new Error(`No file for Document ${doc.id}`);
+  const fields = await extractFields(model, { mediaType: file.mediaType, base64: file.base64 });
+  await tools.escalate_to_agent({
+    clientId: event.clientId,
+    trigger: "insufficient_twice",
+    summary: `The income on the ${dmi.type} DMI's Document is still ambiguous after one question. Extracted: ${describeExtracted(fields)}.`,
+    clientWords: store.list("messages").filter((m) => m.clientId === event.clientId && m.sender === "client").at(-1)?.text ?? null,
+    suggestedNextStep: `Call ${client.firstName} to confirm their income and update the application if it changed.`,
+  });
 }
 
 /**
