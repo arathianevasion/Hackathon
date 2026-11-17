@@ -1,35 +1,8 @@
 import Link from "next/link";
 import type { ClientId, Message } from "../src/contract";
-import { PORTAL_LINK_BASE } from "../src/portal/portalLink";
 import type { UploadPageState } from "../src/portal/uploadPage";
-import { openPortalLink, sendClientReply } from "./actions";
+import { PhoneMessages } from "./PhoneMessages";
 import { UploadPage } from "./UploadPage";
-
-const PORTAL_LINK = new RegExp(`(${PORTAL_LINK_BASE.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}[A-Z0-9]+)`);
-
-/** A text, with any Portal link in it tappable: it opens in the in-phone browser. */
-function Bubble({ clientId, message, standalone }: { clientId: ClientId; message: Message; standalone: boolean }) {
-  return (
-    <div className={message.sender === "client" ? "bubble mine" : "bubble"}>
-      {message.text.split(PORTAL_LINK).map((part, i) =>
-        i % 2 === 1 && standalone ? (
-          // On a real phone the link is a plain link to the upload page's URL on this server.
-          <a key={i} className="bubble-link" href={`/r/${part.slice(PORTAL_LINK_BASE.length)}?client=${encodeURIComponent(clientId)}`}>
-            {part}
-          </a>
-        ) : i % 2 === 1 ? (
-          <form key={i} action={openPortalLink} className="bubble-link">
-            <input type="hidden" name="clientId" value={clientId} />
-            <input type="hidden" name="url" value={part} />
-            <button type="submit">{part}</button>
-          </form>
-        ) : (
-          part
-        ),
-      )}
-    </div>
-  );
-}
 
 /**
  * The Client's phone: the Messages view of their Thread, or the in-phone
@@ -75,20 +48,7 @@ export function PhoneSimulator({
     <section className={standalone ? "phone standalone" : "phone"} aria-label="Client phone simulator">
       <div className="phone-screen">
         <header className="phone-header">Messages</header>
-        <div className={messages.length === 0 ? "phone-thread empty" : "phone-thread"} role="log" aria-label="Messages">
-          {messages.length === 0 ? (
-            <p className="phone-empty">No messages</p>
-          ) : (
-            clientId && messages.map((m) => <Bubble key={m.id} clientId={clientId} message={m} standalone={standalone} />)
-          )}
-        </div>
-        {clientId && (
-          <form action={sendClientReply} className="phone-compose">
-            <input type="hidden" name="clientId" value={clientId} />
-            <input name="text" aria-label="Text message" placeholder="Text message" autoComplete="off" required />
-            <button type="submit" className="primary">Send</button>
-          </form>
-        )}
+        <PhoneMessages clientId={clientId} messages={messages} standalone={standalone} />
       </div>
     </section>
   );
