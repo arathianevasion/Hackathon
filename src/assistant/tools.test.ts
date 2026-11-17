@@ -109,6 +109,27 @@ describe("Assistant tools", () => {
       await expect(tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-02" })).rejects.toThrow(/dmi-02/);
       expect(store.list("portalLinks")).toEqual([]);
     });
+
+    it("refuses a 4th link within 24 hours with a Notification to the Agent, and issues no link", async () => {
+      for (let i = 0; i < 3; i++) await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
+      const notesBefore = store.list("notifications").length;
+      await expect(tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" })).rejects.toThrow(/3 Portal links/);
+      expect(store.list("portalLinks")).toHaveLength(3);
+      expect(store.list("notifications").slice(notesBefore)).toEqual([
+        { id: `note-${notesBefore + 1}`, agentId: store.agent()!.id, clientId: ROSA, event: "portal_link_limit", at: NOW.toISOString() },
+      ]);
+      expect(newLogEntries().at(-1)).toMatchObject({ tool: "create_portal_link", result: "Refused: 3 Portal links in 24 hours" });
+    });
+
+    it("does not pile up Notifications while the Client stays at the limit, and issues again once 24 hours have passed", async () => {
+      for (let i = 0; i < 3; i++) await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
+      const notesBefore = store.list("notifications").length;
+      await expect(tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" })).rejects.toThrow();
+      await expect(tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" })).rejects.toThrow();
+      expect(store.list("notifications")).toHaveLength(notesBefore + 1);
+      now = new Date(NOW.getTime() + 24 * 3_600_000);
+      await expect(tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" })).resolves.toMatchObject({ dmiId: "dmi-01" });
+    });
   });
 
   describe("send_text", () => {

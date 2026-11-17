@@ -3,7 +3,7 @@ import { judgeDocument } from "../documents/checks";
 import type { ExtractedFields, InlineFile } from "../documents/extract";
 import { dmiRules } from "../documents/rules";
 import { applicationOf, submitToMarketplace } from "../marketplace/marketplace";
-import { issuePortalLink, PORTAL_LINK_TTL_HOURS } from "../portal/portalLink";
+import { issuePortalLink, linksInLastDay, PORTAL_LINK_TTL_HOURS, PORTAL_LINKS_PER_DAY, PortalLinkLimitError } from "../portal/portalLink";
 import { toIsoDate } from "../dates";
 import type { Store } from "../store/store";
 import { maskSsns } from "./inbound";
@@ -110,6 +110,24 @@ export function createTools({ store, now, extract }: ToolDeps): Tools {
       if (!consent.allowed) {
         log(clientId, "create_portal_link", null, `Refused: ${consent.reason}`);
         throw new Error(`No Portal link: ${consent.reason}`);
+      }
+      if (linksInLastDay(store, clientId, now()) >= PORTAL_LINKS_PER_DAY) {
+        // One Notification per stretch at the limit, not one per refused attempt.
+        const told = store
+          .list("notifications")
+          .some((n) => n.clientId === clientId && n.event === "portal_link_limit" && Date.parse(n.at) > now().getTime() - 24 * 3_600_000);
+        const agent = store.agent();
+        if (!told && agent) {
+          store.add("notifications", {
+            id: `note-${store.list("notifications").length + 1}`,
+            agentId: agent.id,
+            clientId,
+            event: "portal_link_limit",
+            at: now().toISOString(),
+          });
+        }
+        log(clientId, "create_portal_link", consent.consentRecordId, `Refused: ${PORTAL_LINKS_PER_DAY} Portal links in 24 hours`);
+        throw new PortalLinkLimitError();
       }
       const { url, expiresAt } = issuePortalLink(store, clientId, dmiId, now());
       log(clientId, "create_portal_link", consent.consentRecordId, `Portal link issued, expires in ${PORTAL_LINK_TTL_HOURS} hours`);

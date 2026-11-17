@@ -169,7 +169,8 @@ export type NotificationEvent =
   | "opted_out"
   | "consent_rescinded"
   | "documents_submitted"
-  | "dmi_resolved";
+  | "dmi_resolved"
+  | "portal_link_limit";
 
 /** An informational message to the Agent that requires no action. */
 export interface Notification {
