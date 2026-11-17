@@ -75,7 +75,7 @@ describe("runAssistant on dmi.detected", () => {
     expect(thread(ROSA).map((m) => [m.sender, m.text])).toEqual([
       [
         "assistant",
-        `Hi Rosa, I'm your AI Client Advocate, working with your insurance agent, Andrew. The Marketplace needs proof of your income by Nov 26. Everything you need is here: ${linkOf(ROSA)}\nReply with any questions. Reply STOP to opt out.`,
+        `Hi Rosa, I'm your AI Client Advocate, working with your insurance agent, Kalyani. The Marketplace needs proof of your income by Nov 26. Everything you need is here: ${linkOf(ROSA)}\nReply with any questions. Reply STOP to opt out.`,
       ],
     ]);
   });
@@ -84,7 +84,7 @@ describe("runAssistant on dmi.detected", () => {
     const model = scriptedModel();
     await runAssistant({ name: "dmi.detected", clientId: LENA, dmiId: "dmi-05" }, { store, now: () => NOW, model: model.client });
     expect(thread(LENA)[0].text).toBe(
-      `Hi Lena, I'm your AI Client Advocate, working with your insurance agent, Andrew. The Marketplace needs a document showing your Social Security number by Nov 21. Everything you need is here: ${linkOf(LENA)}\nReply with any questions. Reply STOP to opt out.`,
+      `Hi Lena, I'm your AI Client Advocate, working with your insurance agent, Kalyani. The Marketplace needs a document showing your Social Security number by Nov 21. Everything you need is here: ${linkOf(LENA)}\nReply with any questions. Reply STOP to opt out.`,
     );
   });
 
@@ -280,7 +280,7 @@ describe("runAssistant on client.message", () => {
   it("repeats the AI disclosure when the Client asks", async () => {
     const model = scriptedReplyModel();
     await reply(ROSA, "Wait, am I talking to a bot?", model);
-    expect(thread(ROSA)[1].text).toBe("I'm your AI Client Advocate, working with your insurance agent, Andrew.");
+    expect(thread(ROSA)[1].text).toBe("I'm your AI Client Advocate, working with your insurance agent, Kalyani.");
   });
 
   it("repeats the AI disclosure at the start of the answer after 7 quiet days, and not after 6", async () => {
@@ -288,7 +288,7 @@ describe("runAssistant on client.message", () => {
     store.add("messages", { id: "msg-old", clientId: ROSA, sender: "assistant", sentAt: "2026-11-09T15:00:00.000Z", text: asked("Hi") });
     const model = scriptedReplyModel();
     await reply(ROSA, "Why do they need this?", model);
-    expect(thread(ROSA)[2].text.startsWith("I'm your AI Client Advocate, working with your insurance agent, Andrew. It's a routine check.")).toBe(true);
+    expect(thread(ROSA)[2].text.startsWith("I'm your AI Client Advocate, working with your insurance agent, Kalyani. It's a routine check.")).toBe(true);
 
     store.add("messages", { id: "msg-old2", clientId: LENA, sender: "assistant", sentAt: "2026-11-10T15:00:00.000Z", text: "Hi" });
     await reply(LENA, "Why do they need this?", model);
@@ -370,7 +370,7 @@ describe("runAssistant on client.message", () => {
       ]);
       expect(thread(MARCUS).map((m) => [m.sender, m.text])).toEqual([
         ["client", JOB_CHANGE],
-        ["assistant", "It might. Andrew, your licensed agent, needs to update your application, so I've passed this to him and he'll contact you. Please don't upload anything yet."],
+        ["assistant", "It might. Kalyani, your licensed agent, needs to update your application, so I've passed this to him and he'll contact you. Please don't upload anything yet."],
       ]);
     });
 
@@ -425,7 +425,7 @@ describe("runAssistant on client.message", () => {
     it("opens with the AI disclosure after 7 quiet days", async () => {
       firstText(ROSA);
       await reply(ROSA, "What does this mean?", scriptedReplyModel(), new Date(NOW.getTime() + 8 * 86_400_000));
-      expect(thread(ROSA).at(-1)!.text).toBe(`I'm your AI Client Advocate, working with your insurance agent, Andrew. ${INCOME(linkOf(ROSA))}`);
+      expect(thread(ROSA).at(-1)!.text).toBe(`I'm your AI Client Advocate, working with your insurance agent, Kalyani. ${INCOME(linkOf(ROSA))}`);
     });
 
     it("leaves 'Why do I need this?' with the why reply", async () => {
@@ -454,13 +454,13 @@ describe("runAssistant on client.message", () => {
   describe("a reply on a topic unrelated to the DMI", () => {
     const DENTAL = "Does my plan cover dental? My tooth hurts";
     const UNRELATED =
-      "Thanks for asking! I can only help with the document the Marketplace asked for, so I can't answer that here. Want Andrew, your licensed agent, to contact you about it? Just reply yes and I'll pass it on.";
+      "Thanks for asking! I can only help with the document the Marketplace asked for, so I can't answer that here. Want Kalyani, your licensed agent, to contact you about it? Just reply yes and I'll pass it on.";
     const links = () => store.list("portalLinks").filter((l) => l.clientId === ROSA);
     const escalations = () => store.list("escalations").filter((e) => e.clientId === ROSA);
     const firstText = () =>
       store.add("messages", { id: "msg-first", clientId: ROSA, sender: "assistant", sentAt: NOW.toISOString(), text: "first text" });
     const confirmation = (url: string) =>
-      `Done. Andrew will contact you about it. Your document for the Marketplace is still due, and your link still works: ${url}`;
+      `Done. Kalyani will contact you about it. Your document for the Marketplace is still due, and your link still works: ${url}`;
 
     it("gets the unrelated-topic text word for word, and raises no Escalation and no link", async () => {
       firstText();
@@ -473,7 +473,7 @@ describe("runAssistant on client.message", () => {
     it("opens with the AI disclosure after 7 quiet days", async () => {
       firstText();
       await reply(ROSA, DENTAL, scriptedReplyModel(), new Date(NOW.getTime() + 8 * 86_400_000));
-      expect(thread(ROSA).at(-1)!.text).toBe(`I'm your AI Client Advocate, working with your insurance agent, Andrew. ${UNRELATED}`);
+      expect(thread(ROSA).at(-1)!.text).toBe(`I'm your AI Client Advocate, working with your insurance agent, Kalyani. ${UNRELATED}`);
     });
 
     it("a yes to the offer raises client_asked_for_agent with the unrelated message as the Client's words", async () => {

@@ -24,16 +24,16 @@ const tools = (at: Date) => createTools({ store, now: () => at, extract: () => P
 const deps = (at: Date) => ({ store, now: () => at });
 
 describe("an Agent text in the Thread", () => {
-  it("goes out from the Agent with the 'Andrew here:' prefix", async () => {
+  it("goes out from the Agent with the 'Kalyani here:' prefix", async () => {
     const result = await sendAgentText(deps(NOW), ROSA, "Can you call me back today?");
     expect(result).toMatchObject({ sent: true });
     const last = store.list("messages").filter((m) => m.clientId === ROSA).at(-1)!;
-    expect(last).toMatchObject({ sender: "agent", text: "Andrew here: Can you call me back today?" });
+    expect(last).toMatchObject({ sender: "agent", text: "Kalyani here: Can you call me back today?" });
   });
 
   it("does not double the prefix when the Agent typed it", async () => {
-    await sendAgentText(deps(NOW), ROSA, "Andrew here: Hi Rosa");
-    expect(store.list("messages").at(-1)!.text).toBe("Andrew here: Hi Rosa");
+    await sendAgentText(deps(NOW), ROSA, "Kalyani here: Hi Rosa");
+    expect(store.list("messages").at(-1)!.text).toBe("Kalyani here: Hi Rosa");
   });
 
   it("holds the Assistant for that Client until Hand back", async () => {
