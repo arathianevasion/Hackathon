@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { openStore, type Store } from "../src/store/store";
 import AgentView from "./page";
 import PhonePage from "./phone/page";
+import { PhoneSimulator } from "./PhoneSimulator";
 import UploadRoute from "./r/[token]/page";
 import { issuePortalLink, PORTAL_LINK_BASE } from "../src/portal/portalLink";
 
@@ -39,6 +40,20 @@ describe("/phone", () => {
     textRosa(`Upload here: ${link.url}`);
     const html = await render(PhonePage({ searchParams: Promise.resolve({ client: ROSA }) }));
     expect(html).toContain(`href="/r/${link.url.slice(PORTAL_LINK_BASE.length)}?client=${ROSA}"`);
+  });
+});
+
+describe("phone simulator bubbles", () => {
+  it("renders a Portal link as a form inside a bubble that is not a <p>, keeping the bubble classes", () => {
+    const link = issuePortalLink(store, ROSA, "dmi-01", NOW);
+    const messages = [
+      { id: "a", clientId: ROSA, sender: "assistant", text: `Upload here: ${link.url}`, sentAt: NOW.toISOString() },
+      { id: "b", clientId: ROSA, sender: "client", text: "ok", sentAt: NOW.toISOString() },
+    ] as never;
+    const html = renderToStaticMarkup(<PhoneSimulator clientId={ROSA as never} messages={messages} browser={null} />);
+    expect(html).toMatch(/<div class="bubble">Upload here: <form[^>]*class="bubble-link"/);
+    expect(html).toContain('<div class="bubble mine">ok</div>');
+    expect(html).not.toMatch(/<p[^>]*>(?:(?!<\/p>).)*<form/s);
   });
 });
 
