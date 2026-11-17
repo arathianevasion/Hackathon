@@ -14,6 +14,8 @@ const CLOSES_P = new Set([
   "p", "pre", "section", "summary", "table", "ul",
 ]);
 
+const HEADING = /^h[1-6]$/;
+
 /** Elements that may not appear inside themselves or each other. */
 const INTERACTIVE = new Set(["a", "button", "select", "textarea", "label"]);
 
@@ -61,6 +63,7 @@ export function nestingErrors(html: string): string[] {
     const problem = (inside: string) => errors.push(`<${tag}> inside <${inside}>`);
     if (CLOSES_P.has(tag) && open.includes("p")) problem("p");
     else if (tag === "form" && open.includes("form")) problem("form");
+    else if (HEADING.test(tag) && open.some((o) => HEADING.test(o))) problem(open.findLast((o) => HEADING.test(o))!);
     else if ((INTERACTIVE.has(tag) || (tag === "input" && !hiddenInput)) && open.some((o) => o === "a" || o === "button")) {
       problem(open.findLast((o) => o === "a" || o === "button")!);
     } else if (ALLOWED_PARENTS[tag] && !ALLOWED_PARENTS[tag].includes(parent ?? "")) problem(parent ?? "the document");

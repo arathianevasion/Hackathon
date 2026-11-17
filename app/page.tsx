@@ -72,20 +72,20 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
           <p className="muted">Synthetic data only. Clients ranked by DMI deadline.</p>
         </div>
         <div className="controls">
-        <form action={fastForwardDemo} className="fast-forward">
-          <label>
-            Fast-forward{" "}
-            <select name="days" defaultValue="1">
-              <option value="1">1 day</option>
-              <option value="3">3 days</option>
-              <option value="7">7 days</option>
-            </select>
-          </label>{" "}
-          <button type="submit" className="primary">Go</button>
-        </form>
-        <form action={resetDemo}>
-          <button type="submit">Reset demo</button>
-        </form>
+          <form action={fastForwardDemo} className="fast-forward">
+            <label>
+              Fast-forward{" "}
+              <select name="days" defaultValue="1">
+                <option value="1">1 day</option>
+                <option value="3">3 days</option>
+                <option value="7">7 days</option>
+              </select>
+            </label>{" "}
+            <button type="submit" className="primary">Go</button>
+          </form>
+          <form action={resetDemo}>
+            <button type="submit">Reset demo</button>
+          </form>
         </div>
       </header>
 

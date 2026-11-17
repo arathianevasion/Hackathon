@@ -20,6 +20,10 @@ describe("nestingErrors", () => {
     expect(nestingErrors('<a href="/"><button>x</button></a>')).toEqual(["<button> inside <a>"]);
   });
 
+  it("flags a heading inside a heading", () => {
+    expect(nestingErrors("<h2><span><h3>x</h3></span></h2>")).toEqual(["<h3> inside <h2>"]);
+  });
+
   it("flags table and list structure the browser would rewrite", () => {
     expect(nestingErrors("<table><tr><td>x</td></tr></table>")).toEqual(["<tr> inside <table>"]);
     expect(nestingErrors("<table><tbody><tr>x<td>y</td></tr></tbody></table>")).toEqual(["text inside <tr>"]);
