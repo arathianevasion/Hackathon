@@ -110,9 +110,12 @@ describe("a Client who comes back after a silence Escalation", () => {
     });
   });
 
-  it("when the other Escalation is already gone, silence closing leaves the Client unpaused", async () => {
-    await text("back");
-    expect(ran).toHaveBeenCalledTimes(1);
+  it("a text from an already opted-out Client changes nothing: no reply, still escalated, nobody notified", async () => {
+    await text("STOP");
+    await text("hello again");
+    expect(ran).not.toHaveBeenCalled();
+    expect(open().map((e) => e.trigger)).toEqual(["silence"]);
+    expect(comeBackNotes()).toEqual([]);
   });
 
   it("STOP and START come back as today: no reply, and STOP does not close the Escalation", async () => {

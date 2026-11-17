@@ -28,8 +28,8 @@ export function receiveClientText(
   store.add("messages", { id, clientId, sender: "client", sentAt: now().toISOString(), text: maskSsns(typed) });
   const keyword = optKeyword(typed);
   if (keyword) applyOptKeyword(store, clientId, keyword, now());
-  // A Client who comes back before the deadline lifts a silence Escalation; STOP and START change nothing else.
-  else {
+  else if (store.list("clients").find((c) => c.id === clientId)?.optedOutAt === null) {
+    // A Client who comes back before the deadline lifts a silence Escalation; an opted-out Client has not come back to the Assistant.
     const dmi = store
       .list("dmis")
       .filter((d) => d.clientId === clientId && d.status === "open" && assistantTextsAbout(d.type))
