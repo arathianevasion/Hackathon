@@ -3,7 +3,10 @@ import type { ExtractedFields } from "../documents/extract";
 import { issuePortalLink, openUploadSession } from "../portal/portalLink";
 import { receiveUpload } from "../portal/upload";
 import { openStore, type Store } from "../store/store";
+import { createClock } from "../cadence/clock";
+import { fastForward, nextNudgeAt } from "../cadence/engine";
 import { receiveClientText } from "./inbound";
+import { createTools } from "./tools";
 import { confirmationText, runAssistant, type ModelClient, type RunnerParams } from "./run";
 
 const NOW = new Date("2026-11-16T15:00:00Z");
@@ -122,13 +125,26 @@ function scriptedReplyModel() {
             const prompt = String(params.messages[0].content);
             const offered = (id: string) => new RegExp(`<reply id="${id}">([\\s\\S]*?)</reply>`).exec(prompt)?.[1];
             const message = /<client_message[^>]*>([\s\S]*?)<\/client_message>/.exec(prompt)?.[1] ?? "";
-            const pick = offered("ssn") ? "ssn" : /why/i.test(message) ? "why" : /\b(ai|bot|robot|human|real person)\b/i.test(message) ? "disclosure" : null;
-            if (!pick) return;
-            let text = offered(pick)!;
+            const pick = offered("ssn")
+              ? "ssn"
+              : /later|not now|this weekend/i.test(message)
+                ? "later"
+                : /^ready\b/i.test(message)
+                  ? "ready"
+                  : /why/i.test(message)
+                    ? "why" : /\b(ai|bot|robot|human|real person)\b/i.test(message) ? "disclosure" : null;
+            const offeredText = pick && offered(pick);
+            if (!offeredText) return;
+            let text = offeredText;
             if (text.includes("{portal_link}")) {
               const dmiId = /dmi_id: (\S+)/.exec(prompt)![1];
               await tool("check_consent").run({ action: "text_outreach" });
-              const link = JSON.parse(await tool("create_portal_link").run({ dmiId })) as { url: string };
+              let link: { url: string };
+              try {
+                link = JSON.parse(await tool("create_portal_link").run({ dmiId })) as { url: string };
+              } catch {
+                return; // the Tool Runner hands a refusal back to the model as an error; it stops there
+              }
               text = text.replace("{portal_link}", link.url);
             }
             await tool("send_text").run({ text });
@@ -217,6 +233,64 @@ describe("runAssistant on client.message", () => {
     store.add("messages", { id: "msg-old2", clientId: LENA, sender: "assistant", sentAt: "2026-11-10T15:00:00.000Z", text: "Hi" });
     await reply(LENA, "Why do they need this?", model);
     expect(thread(LENA)[2].text.startsWith("It's a routine check.")).toBe(true);
+  });
+
+  describe("saying later and ready by text", () => {
+    const firstText = () =>
+      store.add("messages", { id: "msg-first", clientId: ROSA, sender: "assistant", sentAt: NOW.toISOString(), text: "first text" });
+    const links = () => store.list("portalLinks").filter((l) => l.clientId === ROSA);
+
+    it("'later' gets the promise, naming the day of the scheduled nudge", async () => {
+      firstText();
+      const model = scriptedReplyModel();
+      await reply(ROSA, "Not now, I'll look this weekend", model);
+      expect(nextNudgeAt(store, ROSA)!.toISOString()).toBe("2026-11-17T15:00:00.000Z");
+      expect(thread(ROSA).at(-1)!.text).toBe(
+        `No rush. When you find it, text me "ready" and I'll send a fresh link. If I haven't heard from you, I'll check in on Nov 17.`,
+      );
+      expect(links()).toEqual([]);
+    });
+
+    it("offers no promise when no nudge is scheduled (an Escalation is open)", async () => {
+      firstText();
+      store.add("escalations", {
+        id: "esc-x", clientId: ROSA, trigger: "silence", summary: "s", clientWords: null, suggestedNextStep: null, status: "open", raisedAt: NOW.toISOString(), handledAt: null,
+      });
+      const model = scriptedReplyModel();
+      await reply(ROSA, "later", model);
+      expect(String(model.calls[0].messages[0].content)).not.toContain('<reply id="later">');
+      expect(thread(ROSA).map((m) => m.sender)).toEqual(["assistant", "client"]);
+    });
+
+    it("'ready' gets a fresh link, and the nudge that was scheduled before it never goes out", async () => {
+      firstText();
+      const model = scriptedReplyModel();
+      await reply(ROSA, "I'll come back later", model);
+      const originalNudge = nextNudgeAt(store, ROSA)!;
+      const evening = new Date(NOW.getTime() + 6 * 3_600_000);
+      await reply(ROSA, "ready", model, evening);
+      expect(thread(ROSA).at(-1)!.text).toBe(`Great. Here's a new link, good for 3 days: ${links().at(-1)!.url}`);
+      expect(links()).toHaveLength(1);
+
+      const clock = createClock(evening);
+      const tools = createTools({ store, now: clock.now, extract: async () => ({}) as never });
+      clock.set(originalNudge);
+      const fired = await fastForward({ store, clock, tools }, 0.0001);
+      expect(fired).toEqual([]);
+      expect(thread(ROSA).filter((m) => m.text.startsWith("Hi Rosa, just checking in"))).toEqual([]);
+    });
+
+    it("refuses a 4th link request in 24 hours: no text, and a Notification for the Agent", async () => {
+      firstText();
+      const model = scriptedReplyModel();
+      for (let i = 0; i < 3; i++) await reply(ROSA, "ready", model);
+      const notes = store.list("notifications").length;
+      const texts = thread(ROSA).length;
+      await reply(ROSA, "ready", model);
+      expect(links()).toHaveLength(3);
+      expect(thread(ROSA)).toHaveLength(texts + 1); // only the Client's own message
+      expect(store.list("notifications").slice(notes)).toMatchObject([{ clientId: ROSA, event: "portal_link_limit" }]);
+    });
   });
 
   it("sends nothing for a reply the Assistant has no scripted answer to yet", async () => {

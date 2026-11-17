@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { receiveClientText } from "../src/assistant/inbound";
 import { runAssistant } from "../src/assistant/run";
 import { openUploadSession, PORTAL_LINK_BASE } from "../src/portal/portalLink";
+import { comeBackLater } from "../src/portal/comeBackLater";
 import { receiveUpload } from "../src/portal/upload";
 import { createTools } from "../src/assistant/tools";
 import { demoClock, resetDemoClock } from "../src/cadence/demo";
@@ -77,5 +78,11 @@ export async function uploadDocument(formData: FormData) {
     return;
   }
   await runAssistant(event, deps);
+  revalidatePath("/", "layout");
+}
+
+/** The Client taps "I'll come back later" on the upload page: the link closes and the Assistant texts the promise. */
+export async function comeBackLaterAction(formData: FormData) {
+  await comeBackLater({ store: demoStore(), now: demoClock().now }, String(formData.get("token")));
   revalidatePath("/", "layout");
 }

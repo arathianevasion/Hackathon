@@ -30,16 +30,21 @@ export interface ReplyTexts {
   why: string;
   disclosure: string;
   ssn: string;
+  /** The promise after "later"; null when no nudge is scheduled, so there is nothing to promise. */
+  later: string | null;
+  ready: string;
 }
 
 /** The replies on offer; after `quiet` days of silence each opens with the AI disclosure. */
-export function replyTexts(input: { agentFirstName: string; dmiType: DmiType; deadline: IsoDate; quiet: boolean }): ReplyTexts {
+export function replyTexts(input: { agentFirstName: string; dmiType: DmiType; deadline: IsoDate; quiet: boolean; checkInOn: IsoDate | null }): ReplyTexts {
   const ai = disclosure(input.agentFirstName);
   const open = (text: string) => (input.quiet ? `${ai} ${text}` : text);
   return {
     why: open(whyText(input.dmiType, input.deadline)),
     disclosure: ai,
     ssn: open("Please don't send your Social Security number by text. The Marketplace needs a document, and the link shows which ones work."),
+    later: input.checkInOn === null ? null : open(laterText(input.checkInOn)),
+    ready: open(READY_TEXT),
   };
 }
 
