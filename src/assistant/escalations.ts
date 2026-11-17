@@ -1,4 +1,4 @@
-import type { ClientId, EscalationId } from "../contract";
+import type { ClientId, Escalation, EscalationId } from "../contract";
 import type { Store } from "../store/store";
 
 /** Refused because the Assistant is paused for the Client: an Escalation is open, or the Agent is in the Thread. */
@@ -34,9 +34,19 @@ export function lastHandBackAt(store: Store, clientId: ClientId): number | null 
   return times.length ? Math.max(...times) : null;
 }
 
-/** Whether the Assistant is paused for a Client: an Escalation of theirs is open, or the Agent is in the Thread. */
+/** Whether an Escalation pauses the Assistant: every trigger does, except a Client asking for the Agent about something unrelated to their DMI. */
+function pausesAssistant(escalation: Escalation): boolean {
+  return escalation.status === "open" && escalation.trigger !== "client_asked_for_agent";
+}
+
+/** Whether the Client has an open Escalation that pauses the Assistant. */
+export function pausingEscalationOpen(store: Store, clientId: ClientId): boolean {
+  return store.list("escalations").some((e) => e.clientId === clientId && pausesAssistant(e));
+}
+
+/** Whether the Assistant is paused for a Client: a pausing Escalation of theirs is open, or the Agent is in the Thread. */
 export function isPaused(store: Store, clientId: ClientId): boolean {
-  return store.list("escalations").some((e) => e.clientId === clientId && e.status === "open") || agentInThread(store, clientId);
+  return pausingEscalationOpen(store, clientId) || agentInThread(store, clientId);
 }
 
 /**

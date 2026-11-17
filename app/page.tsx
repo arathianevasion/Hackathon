@@ -33,6 +33,7 @@ const TRIGGER_LABEL: Record<EscalationTrigger, string> = {
   insufficient_twice: "Document insufficient twice",
   suspected_fraud: "Suspected fraud or inconsistent documents",
   silence: "No response after initial text and nudge",
+  client_asked_for_agent: "Client asked you to contact them about something other than the DMI",
 };
 
 const TOTAL_LABEL: Record<QueueFilter, string> = {

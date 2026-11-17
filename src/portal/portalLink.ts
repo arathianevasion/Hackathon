@@ -55,6 +55,16 @@ export function issuePortalLink(store: Store, clientId: ClientId, dmiId: string,
   return link;
 }
 
+/** The Client's most recent Portal link for a DMI if it still opens (not used, closed or expired); null otherwise. */
+export function livePortalLink(store: Store, clientId: ClientId, dmiId: string, at: Date): IssuedPortalLink | null {
+  const latest = store
+    .list("portalLinks")
+    .filter((l) => l.clientId === clientId && l.dmiId === dmiId)
+    .at(-1);
+  if (!latest || latest.usedAt !== null || latest.closedAt || Date.parse(latest.expiresAt) <= at.getTime()) return null;
+  return latest;
+}
+
 export type Redemption =
   | { ok: true; link: IssuedPortalLink }
   | { ok: false; reason: "unknown" | "used" | "closed" | "expired" };

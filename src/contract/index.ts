@@ -148,7 +148,9 @@ export type EscalationTrigger =
   | "advice_or_low_confidence"
   | "insufficient_twice"
   | "suspected_fraud"
-  | "silence";
+  | "silence"
+  /** The Client said yes to having the Agent contact them about a topic unrelated to their DMI; the only trigger that does not pause the Assistant. */
+  | "client_asked_for_agent";
 export type EscalationStatus = "open" | "handled";
 
 /** A handover that requires the Agent to act. */

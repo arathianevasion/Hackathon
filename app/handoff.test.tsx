@@ -49,6 +49,20 @@ describe("the handoff card", () => {
     expect(html).toContain("Mark handled");
   });
 
+  it("labels a Client's ask for the Agent about an unrelated topic readably", async () => {
+    const tools = createTools({ store, now: () => new Date(), extract: () => Promise.reject(new Error("none")) });
+    await tools.escalate_to_agent({
+      clientId: MARCUS,
+      trigger: "client_asked_for_agent",
+      summary: "Asks whether his plan covers dental.",
+      clientWords: "Does my plan cover dental?",
+      suggestedNextStep: "Call Marcus about their question, which isn't about their DMI.",
+    });
+    const html = await view(MARCUS);
+    expect(html).toContain("Client asked you to contact them about something other than the DMI");
+    expect(html).not.toContain("client_asked_for_agent");
+  });
+
   it("Mark handled closes the Escalation, and the card goes", async () => {
     const escalationId = await escalateMarcus();
     const form = new FormData();
