@@ -6,7 +6,7 @@ import { createTools, type Tools } from "./tools";
 const NOW = new Date("2026-11-16T15:00:00Z");
 const ROSA = "client-01"; // happy path, CR-1041
 const JUNE = "client-07"; // opted out, CR-1030
-const FIRST_TEXT_HEAD = "Hi Rosa, I'm the AI assistant for your insurance agent, Andrew. ";
+const FIRST_TEXT_HEAD = "Hi Rosa, I'm your AI Client Advocate, working with your insurance agent, Andrew. ";
 
 describe("Assistant tools", () => {
   let store: Store;
@@ -194,12 +194,12 @@ describe("Assistant tools", () => {
 
     it("lets the variant D first text through with the link filled in", async () => {
       const link = await tools.create_portal_link({ clientId: ROSA, dmiId: "dmi-01" });
-      const text = `Hi Rosa, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs proof of your income by Nov 26. Everything you need is here: ${link.url}\nReply with any questions. Reply STOP to opt out.`;
+      const text = `Hi Rosa, I'm your AI Client Advocate, working with your insurance agent, Andrew. The Marketplace needs proof of your income by Nov 26. Everything you need is here: ${link.url}\nReply with any questions. Reply STOP to opt out.`;
       expect(await tools.send_text({ clientId: ROSA, text })).toMatchObject({ sent: true });
     });
 
     it("accepts a first text with a curly apostrophe or different casing in the required phrases", async () => {
-      const text = "Hi Rosa, I\u2019m the AI assistant for your insurance agent, Andrew. reply stop to opt out";
+      const text = "Hi Rosa, I\u2019m your AI Client Advocate, working with your insurance agent, Andrew. reply stop to opt out";
       expect(await tools.send_text({ clientId: ROSA, text })).toMatchObject({ sent: true });
     });
 

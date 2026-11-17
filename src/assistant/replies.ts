@@ -13,7 +13,7 @@ export const CLARIFYING_QUESTION =
 
 /** The AI disclosure, as the first text words it (variant D). */
 export function disclosure(agentFirstName: string): string {
-  return `I'm the AI assistant for your insurance agent, ${agentFirstName}.`;
+  return `I'm your AI Client Advocate, working with your insurance agent, ${agentFirstName}.`;
 }
 
 /** Whole days between the last message in a Thread and now. */

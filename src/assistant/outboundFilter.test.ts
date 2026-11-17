@@ -6,7 +6,7 @@ const issued = [LINK];
 
 describe("screenOutbound", () => {
   it("passes the first text with its Portal link", () => {
-    const text = `Hi Rosa, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs proof of your income by Nov 26. Everything you need is here: ${LINK}\nReply with any questions. Reply STOP to opt out.`;
+    const text = `Hi Rosa, I'm your AI Client Advocate, working with your insurance agent, Andrew. The Marketplace needs proof of your income by Nov 26. Everything you need is here: ${LINK}\nReply with any questions. Reply STOP to opt out.`;
     expect(screenOutbound(text, issued)).toEqual({ ok: true });
   });
 

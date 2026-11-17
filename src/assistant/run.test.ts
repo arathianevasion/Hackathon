@@ -75,7 +75,7 @@ describe("runAssistant on dmi.detected", () => {
     expect(thread(ROSA).map((m) => [m.sender, m.text])).toEqual([
       [
         "assistant",
-        `Hi Rosa, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs proof of your income by Nov 26. Everything you need is here: ${linkOf(ROSA)}\nReply with any questions. Reply STOP to opt out.`,
+        `Hi Rosa, I'm your AI Client Advocate, working with your insurance agent, Andrew. The Marketplace needs proof of your income by Nov 26. Everything you need is here: ${linkOf(ROSA)}\nReply with any questions. Reply STOP to opt out.`,
       ],
     ]);
   });
@@ -84,7 +84,7 @@ describe("runAssistant on dmi.detected", () => {
     const model = scriptedModel();
     await runAssistant({ name: "dmi.detected", clientId: LENA, dmiId: "dmi-05" }, { store, now: () => NOW, model: model.client });
     expect(thread(LENA)[0].text).toBe(
-      `Hi Lena, I'm the AI assistant for your insurance agent, Andrew. The Marketplace needs a document showing your Social Security number by Nov 21. Everything you need is here: ${linkOf(LENA)}\nReply with any questions. Reply STOP to opt out.`,
+      `Hi Lena, I'm your AI Client Advocate, working with your insurance agent, Andrew. The Marketplace needs a document showing your Social Security number by Nov 21. Everything you need is here: ${linkOf(LENA)}\nReply with any questions. Reply STOP to opt out.`,
     );
   });
 
@@ -280,7 +280,7 @@ describe("runAssistant on client.message", () => {
   it("repeats the AI disclosure when the Client asks", async () => {
     const model = scriptedReplyModel();
     await reply(ROSA, "Wait, am I talking to a bot?", model);
-    expect(thread(ROSA)[1].text).toBe("I'm the AI assistant for your insurance agent, Andrew.");
+    expect(thread(ROSA)[1].text).toBe("I'm your AI Client Advocate, working with your insurance agent, Andrew.");
   });
 
   it("repeats the AI disclosure at the start of the answer after 7 quiet days, and not after 6", async () => {
@@ -288,7 +288,7 @@ describe("runAssistant on client.message", () => {
     store.add("messages", { id: "msg-old", clientId: ROSA, sender: "assistant", sentAt: "2026-11-09T15:00:00.000Z", text: asked("Hi") });
     const model = scriptedReplyModel();
     await reply(ROSA, "Why do they need this?", model);
-    expect(thread(ROSA)[2].text.startsWith("I'm the AI assistant for your insurance agent, Andrew. It's a routine check.")).toBe(true);
+    expect(thread(ROSA)[2].text.startsWith("I'm your AI Client Advocate, working with your insurance agent, Andrew. It's a routine check.")).toBe(true);
 
     store.add("messages", { id: "msg-old2", clientId: LENA, sender: "assistant", sentAt: "2026-11-10T15:00:00.000Z", text: "Hi" });
     await reply(LENA, "Why do they need this?", model);
@@ -425,7 +425,7 @@ describe("runAssistant on client.message", () => {
     it("opens with the AI disclosure after 7 quiet days", async () => {
       firstText(ROSA);
       await reply(ROSA, "What does this mean?", scriptedReplyModel(), new Date(NOW.getTime() + 8 * 86_400_000));
-      expect(thread(ROSA).at(-1)!.text).toBe(`I'm the AI assistant for your insurance agent, Andrew. ${INCOME(linkOf(ROSA))}`);
+      expect(thread(ROSA).at(-1)!.text).toBe(`I'm your AI Client Advocate, working with your insurance agent, Andrew. ${INCOME(linkOf(ROSA))}`);
     });
 
     it("leaves 'Why do I need this?' with the why reply", async () => {
@@ -473,7 +473,7 @@ describe("runAssistant on client.message", () => {
     it("opens with the AI disclosure after 7 quiet days", async () => {
       firstText();
       await reply(ROSA, DENTAL, scriptedReplyModel(), new Date(NOW.getTime() + 8 * 86_400_000));
-      expect(thread(ROSA).at(-1)!.text).toBe(`I'm the AI assistant for your insurance agent, Andrew. ${UNRELATED}`);
+      expect(thread(ROSA).at(-1)!.text).toBe(`I'm your AI Client Advocate, working with your insurance agent, Andrew. ${UNRELATED}`);
     });
 
     it("a yes to the offer raises client_asked_for_agent with the unrelated message as the Client's words", async () => {
