@@ -1,4 +1,4 @@
-import type { AssistantTools, ClientId, ConsentCheck, ConsentRecordId, ToolName } from "../contract";
+import type { AssistantTools, ClientId, ConsentCheck, ConsentRecordId, SendTextResult, ToolName } from "../contract";
 import { judgeDocument } from "../documents/checks";
 import type { ExtractedFields, InlineFile } from "../documents/extract";
 import { dmiRules } from "../documents/rules";
@@ -6,7 +6,7 @@ import { applicationOf, submitToMarketplace } from "../marketplace/marketplace";
 import { issuePortalLink, linksInLastDay, PORTAL_LINK_TTL_HOURS, PORTAL_LINKS_PER_DAY, PortalLinkLimitError } from "../portal/portalLink";
 import { toIsoDate } from "../dates";
 import type { Store } from "../store/store";
-import { AssistantPausedError, isPaused } from "./escalations";
+import { AGENT_TEXTED_LOGGED, AssistantPausedError, isPaused } from "./escalations";
 import { maskSsns } from "./inbound";
 import { disclosure } from "./replies";
 import { screenOutbound } from "./outboundFilter";
@@ -39,7 +39,16 @@ export interface ToolDeps {
  * model (ADR 0001), and every call is written to the action log with the
  * Consent record it ran under.
  */
-export function createTools({ store, now, extract }: ToolDeps): Tools {
+export function createTools(deps: ToolDeps): Tools {
+  return build(deps).tools;
+}
+
+/** Sends a text as the Agent through the same guardrails as `send_text`; the caller adds the prefix. */
+export function deliverAgentText(deps: Omit<ToolDeps, "extract">, clientId: ClientId, text: string): Promise<SendTextResult> {
+  return build({ ...deps, extract: () => Promise.reject(new Error("The Agent's texts extract nothing")) }).deliver("agent", clientId, text);
+}
+
+function build({ store, now, extract }: ToolDeps) {
   const log = (clientId: ClientId, tool: ToolName, consentRecordId: ConsentRecordId | null, result: string) =>
     store.add("actionLog", {
       id: `log-${store.list("actionLog").length + 1}`,
@@ -68,12 +77,11 @@ export function createTools({ store, now, extract }: ToolDeps): Tools {
     return result;
   };
 
-  return {
-    check_consent,
-    async send_text({ clientId, text }) {
+  // One delivery path for both senders: the Agent's texts meet the same opt-out, consent and outbound filter.
+  const deliver = async (sender: "assistant" | "agent", clientId: ClientId, text: string): Promise<SendTextResult> => {
       const client = store.list("clients").find((c) => c.id === clientId);
       if (!client) throw new Error(`No Client ${clientId}`);
-      refuseWhilePaused(clientId, "send_text");
+      if (sender === "assistant") refuseWhilePaused(clientId, "send_text");
       const consent = await check_consent({ clientId, action: "text_outreach" });
       if (client.optedOutAt !== null) {
         log(clientId, "send_text", null, "Refused: opted_out");
@@ -85,7 +93,8 @@ export function createTools({ store, now, extract }: ToolDeps): Tools {
       }
       // A reply to a Client's text is not a first text: only an empty Thread makes it one.
       const isFirstText = !store.list("messages").some((m) => m.clientId === clientId);
-      if (isFirstText) {
+      // A person writing needs no AI disclosure.
+      if (isFirstText && sender === "assistant") {
         const agent = store.agent();
         if (!agent) throw new Error("No Agent");
         const seen = normalize(text);
@@ -109,10 +118,14 @@ export function createTools({ store, now, extract }: ToolDeps): Tools {
         return { sent: false, reason: "outbound_filter" };
       }
       const messageId = `msg-${store.list("messages").length + 1}`;
-      store.add("messages", { id: messageId, clientId, sender: "assistant", sentAt: now().toISOString(), text });
-      log(clientId, "send_text", consent.consentRecordId, "Text sent");
+      store.add("messages", { id: messageId, clientId, sender, sentAt: now().toISOString(), text });
+      log(clientId, "send_text", consent.consentRecordId, sender === "agent" ? AGENT_TEXTED_LOGGED : "Text sent");
       return { sent: true, messageId };
-    },
+  };
+
+  const tools: Tools = {
+    check_consent,
+    send_text: ({ clientId, text }) => deliver("assistant", clientId, text),
     async create_portal_link({ clientId, dmiId }) {
       const dmi = store.list("dmis").find((d) => d.id === dmiId && d.clientId === clientId);
       if (!dmi) throw new Error(`${dmiId} is not a DMI of ${clientId}`);
@@ -221,6 +234,7 @@ export function createTools({ store, now, extract }: ToolDeps): Tools {
       return { submitted: true, dmiStatus: waiting.status };
     },
   };
+  return { tools, deliver };
 }
 
 /** Lower-case with curly apostrophes made straight, so typography doesn't fail the required phrases. */
