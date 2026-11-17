@@ -1,4 +1,4 @@
-import type { DmiType, NotificationEvent } from "../src/contract";
+import type { DmiType, EscalationTrigger, NotificationEvent } from "../src/contract";
 import { toIsoDate } from "../src/dates";
 import { rankByDeadline } from "../src/queue/rank";
 import { demoStore } from "../src/store/demo";
@@ -6,7 +6,7 @@ import Link from "next/link";
 import { assistantTextsAbout } from "../src/assistant/firstText";
 import { uploadPageState } from "../src/portal/uploadPage";
 import { demoClock } from "../src/cadence/demo";
-import { fastForwardDemo, openDmi, resetDemo } from "./actions";
+import { fastForwardDemo, markHandled, openDmi, resetDemo } from "./actions";
 import { AutoRefresh } from "./AutoRefresh";
 import { PhoneSimulator } from "./PhoneSimulator";
 
@@ -18,6 +18,16 @@ const NOTIFICATION_LABEL: Record<NotificationEvent, string> = {
   documents_submitted: "Documents submitted to the Marketplace",
   dmi_resolved: "DMI resolved",
   portal_link_limit: "3 Portal links sent in 24 hours",
+};
+
+/** The handoff card's trigger line, worded as in the Agent view prototype, variant A. */
+const TRIGGER_LABEL: Record<EscalationTrigger, string> = {
+  income_or_application_change: "Income changed, application update needed",
+  citizenship_or_immigration_dmi: "Citizenship or immigration DMI, always handed to the Agent",
+  advice_or_low_confidence: "Advice request, or the Assistant wasn't sure",
+  insufficient_twice: "Document insufficient twice",
+  suspected_fraud: "Suspected fraud or inconsistent documents",
+  silence: "No response after initial text and nudge",
 };
 
 const DMI_LABEL: Record<DmiType, string> = {
@@ -50,7 +60,7 @@ function timeLabel(at: string): string {
 
 export default async function AgentView({ searchParams }: { searchParams: Promise<{ client?: string; portal?: string; phone?: string }> }) {
   const store = demoStore();
-  const rows = rankByDeadline(store.list("clients"), store.list("dmis"), toIsoDate(demoClock().now()));
+  const rows = rankByDeadline(store.list("clients"), store.list("dmis"), toIsoDate(demoClock().now()), store.list("escalations"));
   const params = await searchParams;
   const selectedId = params.client ?? null;
   const browser = params.portal ? { token: params.portal, state: uploadPageState(store, params.portal, demoClock().now()) } : null;
@@ -58,6 +68,7 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
   const selected = store.list("clients").find((c) => c.id === selectedId) ?? null;
   const thread = selected ? store.list("messages").filter((m) => m.clientId === selected.id) : [];
   const actionLog = selected ? store.list("actionLog").filter((e) => e.clientId === selected.id) : [];
+  const openEscalations = selected ? store.list("escalations").filter((e) => e.clientId === selected.id && e.status === "open") : [];
   const notifications = selected ? store.list("notifications").filter((n) => n.clientId === selected.id) : [];
   const openDmiToText = selected
     ? store.list("dmis").find((d) => d.clientId === selected.id && d.status === "open" && assistantTextsAbout(d.type))
@@ -69,7 +80,7 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
       <header className="topbar">
         <div>
           <h1>Your Enrollment Follow-ups</h1>
-          <p className="muted">Synthetic data only. Clients ranked by DMI deadline.</p>
+          <p className="muted">Synthetic data only. Escalations first, then Clients ranked by DMI deadline.</p>
         </div>
         <div className="controls">
           <form action={fastForwardDemo} className="fast-forward">
@@ -104,6 +115,7 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
               <span className="dmi">
                 {DMI_LABEL[row.dmiType]}
                 {row.dmiStatus === "documents_submitted" && <span className="chip info"> Submitted</span>}
+                {row.escalated && <span className="chip crit"> Escalation</span>}
               </span>
               <span className={`days${daysTone(row.daysLeft)}`}>
                 {daysLeftLabel(row.daysLeft)}
@@ -127,6 +139,24 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
                 </form>
               )}
             </header>
+
+            {openEscalations.map((e) => (
+              <div className="handoff" key={e.id} aria-label="Handoff">
+                <span className="label">Needs you</span>
+                <b>{TRIGGER_LABEL[e.trigger]}</b>
+                <p>{e.summary}</p>
+                {e.clientWords && <blockquote className="quote">&ldquo;{e.clientWords}&rdquo;</blockquote>}
+                {e.suggestedNextStep && (
+                  <p>
+                    <b>Suggested next step:</b> {e.suggestedNextStep}
+                  </p>
+                )}
+                <form action={markHandled}>
+                  <input type="hidden" name="escalationId" value={e.id} />
+                  <button type="submit" className="primary">Mark handled</button>
+                </form>
+              </div>
+            ))}
 
             <h3>Thread</h3>
             {thread.length === 0 ? (

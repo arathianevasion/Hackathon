@@ -6,6 +6,7 @@ import { applicationOf, submitToMarketplace } from "../marketplace/marketplace";
 import { issuePortalLink, linksInLastDay, PORTAL_LINK_TTL_HOURS, PORTAL_LINKS_PER_DAY, PortalLinkLimitError } from "../portal/portalLink";
 import { toIsoDate } from "../dates";
 import type { Store } from "../store/store";
+import { AssistantPausedError, isPaused } from "./escalations";
 import { maskSsns } from "./inbound";
 import { disclosure } from "./replies";
 import { screenOutbound } from "./outboundFilter";
@@ -49,6 +50,13 @@ export function createTools({ store, now, extract }: ToolDeps): Tools {
       at: now().toISOString(),
     });
 
+  // escalate_to_agent's guardrail: while an Escalation is open, nothing more goes to that Client.
+  const refuseWhilePaused = (clientId: ClientId, tool: ToolName) => {
+    if (!isPaused(store, clientId)) return;
+    log(clientId, tool, null, "Refused: paused, an Escalation is open");
+    throw new AssistantPausedError(clientId);
+  };
+
   const check_consent: Tools["check_consent"] = async ({ clientId, action }) => {
     const result = consentFor(store, clientId, action, now());
     log(
@@ -65,6 +73,7 @@ export function createTools({ store, now, extract }: ToolDeps): Tools {
     async send_text({ clientId, text }) {
       const client = store.list("clients").find((c) => c.id === clientId);
       if (!client) throw new Error(`No Client ${clientId}`);
+      refuseWhilePaused(clientId, "send_text");
       const consent = await check_consent({ clientId, action: "text_outreach" });
       if (client.optedOutAt !== null) {
         log(clientId, "send_text", null, "Refused: opted_out");
@@ -107,6 +116,7 @@ export function createTools({ store, now, extract }: ToolDeps): Tools {
     async create_portal_link({ clientId, dmiId }) {
       const dmi = store.list("dmis").find((d) => d.id === dmiId && d.clientId === clientId);
       if (!dmi) throw new Error(`${dmiId} is not a DMI of ${clientId}`);
+      refuseWhilePaused(clientId, "create_portal_link");
       const consent = await check_consent({ clientId, action: "portal_link" });
       if (!consent.allowed) {
         log(clientId, "create_portal_link", null, `Refused: ${consent.reason}`);

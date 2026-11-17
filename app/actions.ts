@@ -8,6 +8,7 @@ import { runAssistant } from "../src/assistant/run";
 import { openUploadSession, PORTAL_LINK_BASE } from "../src/portal/portalLink";
 import { comeBackLater } from "../src/portal/comeBackLater";
 import { receiveUpload } from "../src/portal/upload";
+import { markEscalationHandled } from "../src/assistant/escalations";
 import { createTools } from "../src/assistant/tools";
 import { demoClock, resetDemoClock } from "../src/cadence/demo";
 import { fastForward } from "../src/cadence/engine";
@@ -84,5 +85,11 @@ export async function uploadDocument(formData: FormData) {
 /** The Client taps "I'll come back later" on the upload page: the link closes and the Assistant texts the promise. */
 export async function comeBackLaterAction(formData: FormData) {
   await comeBackLater({ store: demoStore(), now: demoClock().now }, String(formData.get("token")));
+  revalidatePath("/", "layout");
+}
+
+/** The Agent taps "Mark handled" on the handoff card: the Escalation closes, and with none left open the Assistant resumes. */
+export async function markHandled(formData: FormData) {
+  markEscalationHandled(demoStore(), String(formData.get("escalationId")), demoClock().now());
   revalidatePath("/", "layout");
 }
