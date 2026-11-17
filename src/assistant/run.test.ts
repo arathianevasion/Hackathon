@@ -118,7 +118,7 @@ describe("runAssistant on dmi.detected", () => {
     expect(store.list("escalations").filter((e) => e.clientId === "client-06" && e.status === "open")).toMatchObject([
       {
         trigger: "citizenship_or_immigration_dmi",
-        summary: "Citizenship DMIs always go to you. The Assistant has not contacted Tomasz.",
+        summary: "Citizenship DMIs always go to you. The AI Client Advocate has not contacted Tomasz.",
         clientWords: null,
         suggestedNextStep: "Contact Tomasz yourself about proof of citizenship.",
       },
@@ -134,7 +134,7 @@ describe("runAssistant on dmi.detected", () => {
     expect(store.list("escalations").filter((e) => e.clientId === "client-06" && e.status === "open")).toMatchObject([
       {
         trigger: "citizenship_or_immigration_dmi",
-        summary: "Immigration DMIs always go to you. The Assistant has not contacted Tomasz.",
+        summary: "Immigration DMIs always go to you. The AI Client Advocate has not contacted Tomasz.",
         suggestedNextStep: "Contact Tomasz yourself about proof of immigration status.",
       },
     ]);
