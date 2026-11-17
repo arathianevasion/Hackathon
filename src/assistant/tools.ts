@@ -16,7 +16,13 @@ const OPT_OUT_LINE = "Reply STOP to opt out";
 /** The tools built so far; the rest of `AssistantTools` arrives with later tickets. */
 export type Tools = Pick<
   AssistantTools,
-  "check_consent" | "send_text" | "create_portal_link" | "lookup_dmi_rules" | "precheck_document" | "submit_documents"
+  | "check_consent"
+  | "send_text"
+  | "create_portal_link"
+  | "lookup_dmi_rules"
+  | "precheck_document"
+  | "submit_documents"
+  | "escalate_to_agent"
 >;
 
 export interface ToolDeps {
@@ -140,6 +146,14 @@ export function createTools({ store, now, extract }: ToolDeps): Tools {
       const label = precheck.result[0].toUpperCase() + precheck.result.slice(1);
       log(client.id, "precheck_document", consent.consentRecordId, precheck.reasons.length ? `${label}: ${precheck.reasons.join("; ")}` : label);
       return precheck;
+    },
+    async escalate_to_agent({ clientId, trigger, summary, clientWords, suggestedNextStep }) {
+      if (!store.list("clients").some((c) => c.id === clientId)) throw new Error(`No Client ${clientId}`);
+      const escalationId = `esc-${store.list("escalations").length + 1}`;
+      const at = now().toISOString();
+      store.add("escalations", { id: escalationId, clientId, trigger, summary, clientWords, suggestedNextStep, status: "open", raisedAt: at, handledAt: null });
+      log(clientId, "escalate_to_agent", null, summary);
+      return { escalationId };
     },
     async submit_documents({ dmiId, documentIds }) {
       const dmi = store.list("dmis").find((d) => d.id === dmiId);
