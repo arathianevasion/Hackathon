@@ -22,6 +22,7 @@ export type Tools = Pick<
   | "lookup_dmi_rules"
   | "precheck_document"
   | "submit_documents"
+  | "get_dmi_status"
   | "escalate_to_agent"
 >;
 
@@ -154,6 +155,12 @@ export function createTools({ store, now, extract }: ToolDeps): Tools {
       store.add("escalations", { id: escalationId, clientId, trigger, summary, clientWords, suggestedNextStep, status: "open", raisedAt: at, handledAt: null });
       log(clientId, "escalate_to_agent", null, summary);
       return { escalationId };
+    },
+    async get_dmi_status({ dmiId }) {
+      const dmi = store.list("dmis").find((d) => d.id === dmiId);
+      if (!dmi) throw new Error(`No DMI ${dmiId}`);
+      log(dmi.clientId, "get_dmi_status", null, `Marketplace status: ${dmi.status}`);
+      return { dmiId, status: dmi.status };
     },
     async submit_documents({ dmiId, documentIds }) {
       const dmi = store.list("dmis").find((d) => d.id === dmiId);

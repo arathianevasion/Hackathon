@@ -96,6 +96,19 @@ describe("document tools", () => {
     });
   });
 
+  describe("get_dmi_status", () => {
+    it("reads the Marketplace status of a DMI and logs the read", async () => {
+      expect(await tools.get_dmi_status({ dmiId: "dmi-01" })).toEqual({ dmiId: "dmi-01", status: "open" });
+      store.update("dmis", { ...dmi("dmi-01"), status: "resolved", resolvedAt: NOW.toISOString() });
+      expect(await tools.get_dmi_status({ dmiId: "dmi-01" })).toEqual({ dmiId: "dmi-01", status: "resolved" });
+      expect(newLog().at(-1)).toMatchObject({ clientId: ROSA, tool: "get_dmi_status", result: "Marketplace status: resolved" });
+    });
+
+    it("throws for a DMI that does not exist", async () => {
+      await expect(tools.get_dmi_status({ dmiId: "dmi-nope" })).rejects.toThrow("No DMI dmi-nope");
+    });
+  });
+
   describe("submit_documents", () => {
     it("submits a sufficient Document to the mocked Marketplace, notifies the Agent and logs it with the Consent record", async () => {
       const id = upload("dmi-01");

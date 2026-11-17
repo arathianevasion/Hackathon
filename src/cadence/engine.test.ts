@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTools } from "../assistant/tools";
+import { rankByDeadline } from "../queue/rank";
 import { openStore, type Store } from "../store/store";
 import { createClock } from "./clock";
 import { fastForward, runDueCadence, type CadenceDeps } from "./engine";
@@ -121,5 +122,53 @@ describe("the cadence engine", () => {
     expect(fired.map((f) => f.step)).toEqual(["nudge", "escalate"]);
     expect(texts(MARCUS)).toHaveLength(1);
     expect(escalations(MARCUS)).toHaveLength(1);
+  });
+
+  describe("the mocked Marketplace finishing its review on fast-forward", () => {
+    const submit = (dmiId: string) => {
+      const d = store.list("dmis").find((x) => x.id === dmiId)!;
+      store.update("dmis", { ...d, status: "documents_submitted" });
+    };
+    const dmiOf = (id: string) => store.list("dmis").find((d) => d.id === id)!;
+    const RESOLVED_TEXT = "All set. The Marketplace accepted your document. Your coverage and premium help don't change.";
+
+    it("moves a submitted DMI to resolved, tells the Client and notifies the Agent", async () => {
+      firstText(ROSA);
+      submit("dmi-01");
+      await fastForward(deps, 1);
+      expect(dmiOf("dmi-01")).toMatchObject({ status: "resolved", resolvedAt: clock.now().toISOString() });
+      expect(texts(ROSA).at(-1)?.text).toBe(RESOLVED_TEXT);
+      expect(store.list("notifications").filter((n) => n.event === "dmi_resolved" && n.clientId === ROSA)).toMatchObject([
+        { clientId: ROSA, agentId: store.agent()!.id, at: clock.now().toISOString() },
+      ]);
+      expect(store.list("actionLog").some((l) => l.clientId === ROSA && l.tool === "get_dmi_status")).toBe(true);
+    });
+
+    it("leaves open DMIs alone and tells a Client only once", async () => {
+      firstText(ROSA);
+      submit("dmi-01");
+      await fastForward(deps, 1);
+      const sent = texts(ROSA).length;
+      await fastForward(deps, 1);
+      expect(texts(ROSA).filter((m) => m.text === RESOLVED_TEXT)).toHaveLength(1);
+      expect(texts(ROSA).length).toBeGreaterThanOrEqual(sent);
+      expect(dmiOf("dmi-02").status).toBe("open");
+      expect(store.list("notifications").filter((n) => n.event === "dmi_resolved" && n.clientId === ROSA)).toHaveLength(1);
+    });
+
+    it("promises no review date and sends nothing to an opted-out Client, though the DMI still resolves", async () => {
+      submit("dmi-07");
+      await fastForward(deps, 1);
+      expect(dmiOf("dmi-07").status).toBe("resolved");
+      expect(texts(JUNE)).toHaveLength(0);
+      expect(RESOLVED_TEXT).not.toMatch(/\b(by|on|within|days?|tomorrow|today)\b|\d/i);
+    });
+
+    it("shows resolved in the Agent's queue", async () => {
+      submit("dmi-01");
+      await fastForward(deps, 1);
+      const row = rankByDeadline(store.list("clients"), store.list("dmis"), "2026-11-17").find((r) => r.clientId === ROSA)!;
+      expect(row).toMatchObject({ dmiStatus: "resolved", daysLeft: null });
+    });
   });
 });
