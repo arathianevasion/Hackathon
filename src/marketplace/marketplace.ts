@@ -37,3 +37,15 @@ export function submitToMarketplace(store: Store, dmi: Dmi, documents: Document[
   store.update("dmis", waiting);
   return waiting;
 }
+
+/** The mocked Marketplace finishes its review: every DMI waiting on it becomes resolved. Returns those DMIs, resolved. */
+export function finishMarketplaceReviews(store: Store, at: Date): Dmi[] {
+  const finished: Dmi[] = [];
+  for (const dmi of store.list("dmis")) {
+    if (dmi.status !== "documents_submitted") continue;
+    const resolved: Dmi = { ...dmi, status: "resolved", resolvedAt: at.toISOString() };
+    store.update("dmis", resolved);
+    finished.push(resolved);
+  }
+  return finished;
+}

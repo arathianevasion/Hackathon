@@ -1,6 +1,7 @@
 import type { ClientId, Dmi, DmiId, DmiType, Escalation, IsoDateTime, Message } from "../contract";
 import { assistantTextsAbout, dueDateLabel } from "../assistant/firstText";
 import type { Tools } from "../assistant/tools";
+import { finishMarketplaceReviews } from "../marketplace/marketplace";
 import type { Store } from "../store/store";
 import type { Clock } from "./clock";
 import { cadenceFor, daysLeftOn, inQuietHours, QUIET_HOURS, type QuietHours } from "./schedule";
@@ -14,7 +15,7 @@ export interface CadenceDeps {
   store: Store;
   clock: Clock;
   /** The Assistant's tools; every guardrail (consent, opt-out, outbound filter) stays in them. */
-  tools: Pick<Tools, "create_portal_link" | "send_text">;
+  tools: Pick<Tools, "create_portal_link" | "send_text" | "get_dmi_status">;
   quietHours?: QuietHours;
 }
 
@@ -117,10 +118,35 @@ function escalate(store: Store, clientId: ClientId, now: Date, contact: number):
   });
 }
 
+/** Variant D's resolved text, verbatim. It promises nothing beyond the Marketplace's decision, and no date. */
+const RESOLVED_TEXT = "All set. The Marketplace accepted your document. Your coverage and premium help don't change.";
+
+/**
+ * The mocked Marketplace finishes its review of every submitted DMI. The Agent
+ * is notified; the Assistant reads the status back and, where the tools allow
+ * it, tells the Client. Fixed wording, no model call (ADR 0001).
+ */
+async function finishReviews({ store, tools }: CadenceDeps, now: Date): Promise<void> {
+  const agent = store.agent();
+  for (const dmi of finishMarketplaceReviews(store, now)) {
+    if (!agent) throw new Error("No Agent");
+    store.add("notifications", {
+      id: `note-${store.list("notifications").length + 1}`,
+      agentId: agent.id,
+      clientId: dmi.clientId,
+      event: "dmi_resolved",
+      at: now.toISOString(),
+    });
+    const { status } = await tools.get_dmi_status({ dmiId: dmi.id });
+    if (status === "resolved") await tools.send_text({ clientId: dmi.clientId, text: RESOLVED_TEXT });
+  }
+}
+
 /**
  * The demo's fast-forward: moves the clock ahead `days` days, an hour at a
  * time, firing what falls due at each hour (so nudges wait for the texting
- * window and run before the Escalation). Returns what fired, in order.
+ * window and run before the Escalation), then lets the mocked Marketplace
+ * finish reviewing what was submitted. Returns the cadence steps that fired.
  */
 export async function fastForward(deps: CadenceDeps, days: number): Promise<FiredStep[]> {
   const fired: FiredStep[] = [];
@@ -128,5 +154,6 @@ export async function fastForward(deps: CadenceDeps, days: number): Promise<Fire
     deps.clock.advance(HOUR_MS);
     fired.push(...(await runDueCadence(deps)));
   }
+  await finishReviews(deps, deps.clock.now());
   return fired;
 }
