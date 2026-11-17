@@ -37,7 +37,7 @@ export function guidanceFor(reasons: string[]): Guidance | null {
   if (reasons.some((r) => r === REASON.nameMismatch || r.startsWith(REASON.ssnMismatchPrefix))) return null;
   if (reasons.length === 0) return null;
   const cropped = reasons.includes(REASON.cropped);
-  const photo = [REASON.cropped, REASON.illegible];
+  const photo: string[] = [REASON.cropped, REASON.illegible];
   const lines = reasons.map((r) => {
     const field = FIELDS.find((f) => r === REASON.missing(f));
     return field ? MISSING[field][cropped ? "cropped" : "plain"] : r;
