@@ -2,6 +2,7 @@ import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaToolRunnerParams } from "@anthropic-ai/sdk/resources/beta/messages";
 import { z } from "zod";
 import type { Client, ClientId, DmiType, DomainEvent, EscalationTrigger, Message, ToolName } from "../contract";
+import { describeExtracted } from "../documents/checks";
 import { guidanceFor, guidanceText } from "../documents/guidance";
 import { extractFields, FALLBACK_BETA, type ExtractionClient } from "../documents/extract";
 import type { Store } from "../store/store";
@@ -118,7 +119,7 @@ async function checkUpload(event: Extract<DomainEvent, { name: "document.uploade
  * one is still ambiguous, the Escalation carries the extracted fields (SSN
  * masked) and nothing more goes to the Client.
  */
-async function followUpAmbiguous(event: Extract<DomainEvent, { name: "document.uploaded" }>, { store, now }: RunDeps): Promise<void> {
+async function followUpAmbiguous(event: Extract<DomainEvent, { name: "document.uploaded" }>, { store, now, model }: RunDeps): Promise<void> {
   const doc = store.list("documents").find((d) => d.id === event.documentId);
   if (doc?.precheck.result !== "ambiguous") return;
   if (store.list("escalations").some((e) => e.clientId === event.clientId && e.status === "open")) return;
@@ -131,10 +132,14 @@ async function followUpAmbiguous(event: Extract<DomainEvent, { name: "document.u
   const client = store.list("clients").find((c) => c.id === event.clientId);
   const dmi = store.list("dmis").find((d) => d.id === event.dmiId);
   if (!client || !dmi) throw new Error(`No DMI ${event.dmiId} for Client ${event.clientId}`);
+  // The fields are not stored (the contract has no place for them): read the Document again, in code, for the Agent.
+  const file = store.list("documentFiles").find((f) => f.id === doc.id);
+  if (!file) throw new Error(`No file for Document ${doc.id}`);
+  const fields = await extractFields(model, { mediaType: file.mediaType, base64: file.base64 });
   await tools.escalate_to_agent({
     clientId: event.clientId,
     trigger: "insufficient_twice",
-    summary: `The income on the ${dmi.type} DMI's Document is still ambiguous after one question. Extracted: ${doc.precheck.extracted ?? "nothing"}.`,
+    summary: `The income on the ${dmi.type} DMI's Document is still ambiguous after one question. Extracted: ${describeExtracted(fields)}.`,
     clientWords: store.list("messages").filter((m) => m.clientId === event.clientId && m.sender === "client").at(-1)?.text ?? null,
     suggestedNextStep: `Call ${client.firstName} to confirm their income and update the application if it changed.`,
   });

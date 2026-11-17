@@ -546,7 +546,7 @@ describe("runAssistant on document.uploaded", () => {
       expect(summary).toContain("3000 biweekly");
       expect(summary).toContain("•••-••-4471");
       expect(summary).not.toContain("900-01");
-      expect(JSON.stringify(store.list("documents"))).not.toContain("900-01");
+      expect(JSON.stringify([store.list("documents"), store.list("actionLog"), store.list("escalations")])).not.toContain("900-01");
       expect(store.list("actionLog").at(-1)).toMatchObject({ tool: "escalate_to_agent" });
     });
 
