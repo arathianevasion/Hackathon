@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Integrity Client Advocate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+/* PROTOTYPE (agent view v2). Integrity tokens, polished. Not production code. */
+:root {
+  --royal: #4178ff; --royal-dark: #1357ff; --royal-soft: #e6eeff;
+  --navy: #052a63; --navy-2: #0b3a80; --navy-ink: #c9d6ee;
+  --paper: #f5f7fa; --sheet: #ffffff; --ink: #1f2430; --muted: #5d6573; --faint: #8a92a0;
+  --rule: #e3e7ee; --rule-strong: #cfd6e2;
+  --crit: #a4262c; --crit-soft: #fbe9ea; --warn: #a34400; --warn-soft: #fcf1e6; --ok: #1a6d0a; --ok-soft: #e6f6e9;
+  --sms-in: #eef1f5;
+  --text: "Lato", -apple-system, "Segoe UI", sans-serif;
+  --fig: "Inter", -apple-system, "Segoe UI", sans-serif;
+  --focus: 0 0 0 3px rgba(65,120,255,.45);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font: 15px/1.45 var(--text); color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
+button, select, textarea, input { font: inherit; color: inherit; }
+:focus-visible { outline: none; box-shadow: var(--focus); border-radius: 6px; }
+.fig { font-family: var(--fig); font-variant-numeric: tabular-nums; }
+
+/* ---------- Masthead ---------- */
+.mast { height: 60px; background: var(--navy); color: #fff; display: flex; align-items: center; gap: 24px; padding: 0 24px; }
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.mark { width: 30px; height: 30px; border-radius: 8px; background: var(--royal); display: grid; place-items: center; flex: none; }
+.mark svg { width: 18px; height: 18px; }
+.brand h1 { margin: 0; font-size: 18px; font-weight: 900; letter-spacing: -0.01em; white-space: nowrap; }
+.brand .who { color: var(--navy-ink); font-size: 14px; white-space: nowrap; border-left: 1px solid rgba(255,255,255,.18); padding-left: 12px; }
+.mast .spacer { flex: 1; }
+.demo { display: flex; align-items: center; gap: 8px; color: var(--navy-ink); font-size: 13px; }
+.demo .clock { color: #fff; font-weight: 700; }
+.demo select, .mast .ghost { background: transparent; border: 1px solid rgba(255,255,255,.28); color: #fff; border-radius: 6px; padding: 5px 10px; font-size: 13px; cursor: pointer; }
+.demo select option { color: var(--ink); }
+.mast .ghost:hover, .demo select:hover { border-color: rgba(255,255,255,.6); }
+.toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13px; color: #fff; border: 0; background: none; padding: 4px 2px; }
+.toggle .track { width: 34px; height: 20px; border-radius: 10px; background: rgba(255,255,255,.25); position: relative; transition: background .18s; flex: none; }
+.toggle .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .18s; }
+.toggle[aria-checked="true"] .track { background: var(--royal); }
+.toggle[aria-checked="true"] .track::after { transform: translateX(14px); }
+
+/* ---------- Desk ---------- */
+.desk { display: grid; grid-template-columns: 372px minmax(0, 1fr) 0; height: calc(100% - 60px); transition: grid-template-columns .28s cubic-bezier(.4,0,.2,1); }
+.desk.phone-on { grid-template-columns: 372px minmax(0, 1fr) 368px; }
+
+/* Queue */
+.queue { background: var(--sheet); border-right: 1px solid var(--rule); display: flex; flex-direction: column; min-height: 0; }
+.qhead { padding: 18px 20px 12px; }
+.qhead h2 { margin: 0 0 12px; font-size: 15px; font-weight: 700; color: var(--muted); }
+.filters { display: flex; gap: 5px; }
+.filter { border: 1px solid var(--rule-strong); background: var(--sheet); border-radius: 999px; padding: 4px 8px; font-size: 12px; white-space: nowrap; cursor: pointer; display: flex; gap: 6px; align-items: baseline; }
+.filter b { font-family: var(--fig); font-weight: 600; }
+.filter[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: #fff; }
+.filter.crit b { color: var(--crit); } .filter.crit[aria-pressed="true"] b { color: #ffb4b8; }
+.rows { overflow-y: auto; flex: 1; border-top: 1px solid var(--rule); }
+.row { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 12px 20px 13px; border-bottom: 1px solid var(--rule); cursor: pointer; position: relative; background: none; border-left: 0; border-right: 0; border-top: 0; width: 100%; text-align: left; }
+.row:hover { background: #f8fafd; }
+.row[aria-current="true"] { background: var(--royal-soft); }
+.row[aria-current="true"]::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--royal); }
+.row .name { font-weight: 700; font-size: 15px; }
+.row .left { font-size: 13px; text-align: right; color: var(--muted); }
+.row .left b { font-weight: 600; color: var(--ink); }
+.row .left.soon b { color: var(--crit); }
+.row .meta { font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.tag { font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 4px; }
+.tag.esc { background: var(--crit-soft); color: var(--crit); }
+.tag.risk { background: var(--warn-soft); color: var(--warn); }
+.tag.sub { background: var(--royal-soft); color: var(--royal-dark); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.win { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: #edf0f5; margin-top: 7px; overflow: hidden; }
+.win i { display: block; height: 100%; background: var(--navy-2); border-radius: 2px; }
+.win.soon i { background: var(--crit); } .win.risk i { background: var(--warn); } .win.done i { background: var(--ok); }
+.group { padding: 14px 20px 6px; font-size: 13px; color: var(--faint); font-weight: 700; border-bottom: 1px solid var(--rule); }
+
+/* Case file */
+.case { overflow-y: auto; min-width: 0; }
+.case-inner { max-width: 760px; margin: 0 auto; padding: 28px 36px 48px; }
+.case-head { display: grid; grid-template-columns: 1fr auto; gap: 4px 24px; align-items: end; }
+.case-head h2 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 900; letter-spacing: -0.015em; }
+.case-head .sub { color: var(--muted); font-size: 14px; }
+.case-head .actions { grid-row: 1 / span 2; grid-column: 2; display: flex; gap: 8px; align-self: start; }
+.btn { border: 1px solid var(--rule-strong); background: var(--sheet); border-radius: 6px; padding: 7px 13px; font-size: 14px; font-weight: 700; cursor: pointer; }
+.btn:hover { border-color: var(--navy-2); }
+.btn.primary { background: var(--royal); border-color: var(--royal); color: #fff; }
+.btn.primary:hover { background: var(--royal-dark); }
+.clockline { margin: 22px 0 6px; display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--muted); }
+.clockline .big { font-family: var(--fig); font-size: 22px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.bigwin { height: 10px; border-radius: 5px; background: #e7ebf2; position: relative; overflow: hidden; }
+.bigwin i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--navy-2), var(--royal)); border-radius: 5px; }
+.bigwin.soon i { background: var(--crit); }
+.bigwin-ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--faint); margin-top: 6px; }
+
+.handoff { margin: 28px 0 8px; background: var(--sheet); border: 1px solid #efc9cb; border-left: 4px solid var(--crit); border-radius: 10px; padding: 18px 20px 18px; box-shadow: 0 8px 24px rgba(164,38,44,.08); }
+.handoff .why { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.handoff h3 { margin: 0; font-size: 17px; font-weight: 900; color: var(--crit); }
+.handoff .when { font-size: 13px; color: var(--muted); }
+.handoff p { margin: 8px 0 0; }
+.quote { margin: 14px 0; padding: 10px 14px; background: var(--sms-in); border-radius: 14px 14px 14px 4px; font-size: 15px; max-width: 520px; }
+.next { display: flex; gap: 10px; align-items: flex-start; padding-top: 12px; border-top: 1px solid var(--rule); }
+.next .lbl { font-weight: 700; white-space: nowrap; }
+.handoff .btns { display: flex; gap: 8px; margin-top: 14px; }
+
+.section { margin-top: 32px; }
+.section h3 { margin: 0 0 12px; font-size: 15px; font-weight: 700; color: var(--muted); display: flex; justify-content: space-between; }
+.section h3 span { font-weight: 400; color: var(--faint); font-size: 13px; }
+.thread { display: flex; flex-direction: column; gap: 10px; }
+.msg { max-width: 78%; }
+.msg .b { padding: 9px 13px; border-radius: 14px; font-size: 14.5px; }
+.msg .t { font-size: 12px; color: var(--faint); margin-top: 3px; }
+.msg.ai .b { background: var(--sms-in); border-bottom-left-radius: 4px; }
+.msg.client { align-self: flex-end; text-align: right; }
+.msg.client .b { background: var(--royal); color: #fff; border-bottom-right-radius: 4px; text-align: left; }
+.msg .who { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 3px; }
+.compose { margin-top: 16px; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+.compose textarea { border: 1px solid var(--rule-strong); border-radius: 8px; padding: 9px 12px; min-height: 44px; resize: vertical; background: var(--sheet); }
+.compose .hint { grid-column: 1 / -1; font-size: 12px; color: var(--faint); }
+.log { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+.log li { display: grid; grid-template-columns: 92px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--rule); font-size: 13.5px; }
+.log .tool { font-weight: 700; }
+.log time { color: var(--faint); font-size: 12.5px; }
+.note { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: 14px; }
+.note .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--royal); margin-top: 7px; flex: none; }
+
+/* Phone */
+.phone-col { overflow: hidden; border-left: 1px solid var(--rule); background: #eef1f6; display: flex; justify-content: center; align-items: flex-start; padding: 24px 0; }
+.phone { width: 320px; height: min(660px, calc(100vh - 110px)); background: var(--navy); border-radius: 44px; padding: 10px; box-shadow: 0 18px 40px rgba(5,42,99,.25); flex: none; }
+.screen { background: #fff; height: 100%; border-radius: 34px; display: flex; flex-direction: column; overflow: hidden; }
+.screen header { text-align: center; padding: 16px 0 10px; border-bottom: 1px solid var(--rule); }
+.screen header b { display: block; font-size: 14px; }
+.screen header span { font-size: 11.5px; color: var(--faint); }
+.screen .thread { flex: 1; overflow-y: auto; padding: 12px 10px; gap: 6px; }
+.screen .msg { max-width: 84%; }
+.screen .msg .b { font-size: 13.5px; }
+.screen .msg.ai .b { background: #ececf0; }
+.screen a { color: var(--royal-dark); }
+.screen .msg.client a { color: #fff; }
+.screen .bar { display: flex; gap: 6px; padding: 8px 10px 14px; border-top: 1px solid var(--rule); }
+.screen .bar input { flex: 1; border: 1px solid var(--rule-strong); border-radius: 18px; padding: 7px 12px; font-size: 13px; }
+.screen .bar button { border: 0; background: var(--royal); color: #fff; border-radius: 18px; padding: 0 14px; font-weight: 700; font-size: 13px; }
+
+@media (prefers-reduced-motion: reduce) { .desk, .toggle .track, .toggle .track::after { transition: none; } }
+@media (max-width: 1100px) {
+  .desk, .desk.phone-on { grid-template-columns: 300px minmax(0,1fr) 0; }
+  .desk.phone-on .phone-col { display: none; }
+  .brand .who { display: none; }
+}
+</style>
+</head>
+<body>
+<header class="mast">
+  <div class="brand">
+    <div class="mark" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5 3.5 5v4c0 3.4 2.4 5.8 5.5 6.5 3.1-.7 5.5-3.1 5.5-6.5V5L9 2.5Z"/><path d="m6.5 9 1.8 1.8L11.8 7.3"/></svg></div>
+    <h1>Integrity Client Advocate</h1>
+    <span class="who">Andrew Example</span>
+  </div>
+  <div class="spacer"></div>
+  <div class="demo" aria-label="Demo controls">
+    Demo clock <span class="clock fig">Tue Nov 17</span>
+    <select aria-label="Fast-forward by"><option>+1 day</option><option>+3 days</option><option>+7 days</option></select>
+    <button class="ghost">Fast-forward</button>
+    <button class="ghost">Reset demo</button>
+  </div>
+  <button class="toggle" role="switch" aria-checked="true" id="phoneToggle"><span class="track" aria-hidden="true"></span>Client's phone</button>
+</header>
+
+<main class="desk phone-on" id="desk">
+  <nav class="queue" aria-label="Clients">
+    <div class="qhead">
+      <h2>Enrollment follow-ups</h2>
+      <div class="filters" role="group" aria-label="Show">
+        <button class="filter crit" aria-pressed="false">Needs you <b>4</b></button>
+        <button class="filter" aria-pressed="false">Due soon <b>2</b></button>
+        <button class="filter" aria-pressed="false">Submitted <b>1</b></button>
+        <button class="filter" aria-pressed="false">Resolved <b>5</b></button>
+      </div>
+    </div>
+    <div class="rows">
+      <button class="row" aria-current="true"><span class="name">Marcus Whitlow</span><span class="left"><b class="fig">20 days</b></span><span class="meta">Income <span class="tag esc">Needs you</span></span><span class="left fig">Dec 10</span><span class="win"><i style="width:78%"></i></span></button>
+      <button class="row"><span class="name">Dmitri Okafor</span><span class="left"><b class="fig">28 days</b></span><span class="meta">Income <span class="tag esc">Needs you</span></span><span class="left fig">Dec 18</span><span class="win"><i style="width:69%"></i></span></button>
+      <button class="row"><span class="name">Priya Anand-Holt</span><span class="left"><b class="fig">45 days</b></span><span class="meta">Income <span class="tag esc">Needs you</span></span><span class="left fig">Jan 4</span><span class="win"><i style="width:50%"></i></span></button>
+      <button class="row"><span class="name">Tomasz Rivera</span><span class="left"><b class="fig">74 days</b></span><span class="meta">Citizenship <span class="tag esc">Needs you</span></span><span class="left fig">Feb 2</span><span class="win"><i style="width:18%"></i></span></button>
+      <button class="row"><span class="name">Lena Marsh</span><span class="left soon"><b class="fig">2 days</b></span><span class="meta">SSN <span class="tag risk">At risk</span></span><span class="left fig">Nov 22</span><span class="win soon"><i style="width:98%"></i></span></button>
+      <button class="row"><span class="name">Rosa Delgado-Finch</span><span class="left soon"><b class="fig">10 days</b></span><span class="meta">Income <span class="tag sub">Submitted</span></span><span class="left fig">Nov 27</span><span class="win risk"><i style="width:89%"></i></span></button>
+      <button class="row"><span class="name">Wes Thornbury</span><span class="left"><b class="fig">19 days</b></span><span class="meta">Income</span><span class="left fig">Dec 6</span><span class="win"><i style="width:79%"></i></span></button>
+      <button class="row"><span class="name">Ada Nkemelu</span><span class="left"><b class="fig">23 days</b></span><span class="meta">SSN</span><span class="left fig">Dec 13</span><span class="win"><i style="width:74%"></i></span></button>
+      <button class="row"><span class="name">Felix Varga</span><span class="left"><b class="fig">31 days</b></span><span class="meta">Income</span><span class="left fig">Dec 21</span><span class="win"><i style="width:66%"></i></span></button>
+      <div class="group">Resolved</div>
+      <button class="row"><span class="name">Harold Kim</span><span class="left"><b>Resolved</b></span><span class="meta">Income <span class="tag ok">Cleared</span></span><span class="left fig">Nov 15</span><span class="win done"><i style="width:100%"></i></span></button>
+      <button class="row"><span class="name">Bea Santos</span><span class="left"><b>Resolved</b></span><span class="meta">SSN <span class="tag ok">Cleared</span></span><span class="left fig">Nov 11</span><span class="win done"><i style="width:100%"></i></span></button>
+    </div>
+  </nav>
+
+  <section class="case" aria-label="Marcus Whitlow">
+    <div class="case-inner">
+      <div class="case-head">
+        <h2>Marcus Whitlow</h2>
+        <div class="actions"><button class="btn">View CRM record</button></div>
+        <div class="sub">Income DMI · Demo Silver 70 · Consent CR-1007</div>
+      </div>
+
+      <div class="clockline"><span>90-day window from the Marketplace notice</span><span><span class="big">20 days</span> left</span></div>
+      <div class="bigwin"><i style="width:78%"></i></div>
+      <div class="bigwin-ends fig"><span>Notice Sep 11</span><span>Deadline Dec 10</span></div>
+
+      <article class="handoff" aria-label="Needs you">
+        <div class="why"><h3>Income or application change</h3><span class="when fig">Today, 9:41 am</span></div>
+        <p>Says he changed jobs last month and earns less. The AI Client Advocate has paused and told him you'll be in touch.</p>
+        <div class="quote">I switched jobs last month, so my pay is lower now. Does that matter?</div>
+        <div class="next"><span class="lbl">Next step</span><span>Call Marcus to review the change and update the projected income on the application together.</span></div>
+        <div class="btns"><button class="btn primary">Mark handled</button><button class="btn">Text Marcus</button></div>
+      </article>
+
+      <div class="section">
+        <h3>Thread <span>Texts from the Client Advocate number</span></h3>
+        <div class="thread">
+          <div class="msg ai"><div class="who">AI Client Advocate</div><div class="b">Hi Marcus, I'm your AI Client Advocate, working with your insurance agent, Andrew. The Marketplace needs proof of your income by Dec 10. Everything you need is here: portal.example/r/7KQ2M9XDPA Reply with any questions. Reply STOP to opt out.</div><div class="t fig">Nov 16, 10:02 am</div></div>
+          <div class="msg client"><div class="b">I switched jobs last month, so my pay is lower now. Does that matter?</div><div class="t fig">9:40 am</div></div>
+          <div class="msg ai"><div class="who">AI Client Advocate</div><div class="b">It might. Andrew, your licensed agent, needs to update your application, so I've passed this along and he'll contact you. Please don't upload anything yet.</div><div class="t fig">9:41 am</div></div>
+        </div>
+        <div class="compose">
+          <textarea aria-label="Text Marcus as Andrew" placeholder="Text Marcus as Andrew"></textarea>
+          <button class="btn primary">Send text</button>
+          <span class="hint">Sends from the same number, starting “Andrew here:”. The AI Client Advocate holds until you hand back.</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Notifications</h3>
+        <div class="note"><span class="dot"></span><span>Marcus opened his upload link, then left without uploading.</span></div>
+      </div>
+
+      <div class="section">
+        <h3>Action log <span>Every tool call, with the consent it used</span></h3>
+        <ul class="log">
+          <li><span class="tool">escalate_to_agent</span><span>Income or application change <time class="fig">· 9:41 am</time></span></li>
+          <li><span class="tool">send_text</span><span>Application-change reply, consent CR-1007 <time class="fig">· 9:41 am</time></span></li>
+          <li><span class="tool">send_text</span><span>First text with Portal link, consent CR-1007 <time class="fig">· Nov 16</time></span></li>
+          <li><span class="tool">check_consent</span><span>Text outreach allowed, CR-1007 <time class="fig">· Nov 16</time></span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <aside class="phone-col" aria-label="Client's phone" id="phoneCol">
+    <div class="phone"><div class="screen">
+      <header><b>Andrew's Client Advocate</b><span>Text message</span></header>
+      <div class="thread">
+        <div class="msg ai"><div class="b">Hi Marcus, I'm your AI Client Advocate, working with your insurance agent, Andrew. The Marketplace needs proof of your income by Dec 10. Everything you need is here: <a href="#">https://portal.example/r/7KQ2M9XDPA</a> Reply with any questions. Reply STOP to opt out.</div></div>
+        <div class="msg client"><div class="b">I switched jobs last month, so my pay is lower now. Does that matter?</div></div>
+        <div class="msg ai"><div class="b">It might. Andrew, your licensed agent, needs to update your application, so I've passed this along and he'll contact you. Please don't upload anything yet.</div></div>
+      </div>
+      <div class="bar"><input aria-label="Text message" placeholder="Text message"><button>Send</button></div>
+    </div></div>
+  </aside>
+</main>
+<script>
+  const t = document.getElementById("phoneToggle"), d = document.getElementById("desk");
+  t.addEventListener("click", () => { const on = t.getAttribute("aria-checked") !== "true"; t.setAttribute("aria-checked", on); d.classList.toggle("phone-on", on); });
+  document.querySelectorAll(".filter").forEach((f) => f.addEventListener("click", () => f.setAttribute("aria-pressed", f.getAttribute("aria-pressed") !== "true")));
+</script>
+</body>
+</html>
