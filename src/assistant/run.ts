@@ -393,13 +393,14 @@ async function answerClient(event: Extract<DomainEvent, { name: "client.message"
         `dmi_id: ${dmi.id}`,
         "Pick the one reply that fits and send it:",
         "- why: they ask why they are being asked or why the Marketplace needs this.",
+        '- explain: they are confused about the texts or the DMI (for example "what does this mean", "I don\'t understand", "I don\'t get it", "what is this about", "is this a scam"). This is not low confidence.',
         "- disclosure: they ask whether you are an AI, a bot or a person.",
         "- unrelated: they ask about something unrelated to this DMI (for example dental coverage, a bill or a different policy).",
         ...(texts.later ? ["- later: they say they will come back to it later, not now, or need time to find the document."] : []),
         '- ready: they say they have the document or are ready for a new link (for example "ready").',
         "Or hand the client to their agent with escalate_to_agent, and send no text yourself:",
         "- income_or_application_change: they say their income, household or anything else on their application has changed (for example a new job or different pay).",
-        "- advice_or_low_confidence: they ask for tax, immigration or legal advice or what to report, or you cannot tell what they need.",
+        "- advice_or_low_confidence: they ask for tax, immigration or legal advice or what to report, or you genuinely cannot place their message.",
         ...(offer
           ? [
               "- client_asked_for_agent: they say yes to your offer to have their agent contact them about their earlier message below. If they say no, send nothing.",
@@ -409,6 +410,7 @@ async function answerClient(event: Extract<DomainEvent, { name: "client.message"
         "Never give advice. If the message is only thanks or an acknowledgement, send nothing and stop.",
         `To send: run check_consent for text_outreach, then ${send}`,
         withLink("why", texts.why),
+        withLink("explain", texts.explain),
         withLink("disclosure", texts.disclosure),
         ...(texts.later ? [withLink("later", texts.later)] : []),
         withLink("ready", texts.ready),
