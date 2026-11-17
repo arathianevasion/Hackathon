@@ -128,8 +128,8 @@ const RESOLVED_TEXT = "All set. The Marketplace accepted your document. Your cov
  */
 async function finishReviews({ store, tools }: CadenceDeps, now: Date): Promise<void> {
   const agent = store.agent();
+  if (!agent) throw new Error("No Agent");
   for (const dmi of finishMarketplaceReviews(store, now)) {
-    if (!agent) throw new Error("No Agent");
     store.add("notifications", {
       id: `note-${store.list("notifications").length + 1}`,
       agentId: agent.id,
