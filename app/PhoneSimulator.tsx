@@ -8,11 +8,16 @@ import { UploadPage } from "./UploadPage";
 const PORTAL_LINK = new RegExp(`(${PORTAL_LINK_BASE.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}[A-Z0-9]+)`);
 
 /** A text, with any Portal link in it tappable: it opens in the in-phone browser. */
-function Bubble({ clientId, message }: { clientId: ClientId; message: Message }) {
+function Bubble({ clientId, message, standalone }: { clientId: ClientId; message: Message; standalone: boolean }) {
   return (
     <p className={message.sender === "client" ? "bubble mine" : "bubble"}>
       {message.text.split(PORTAL_LINK).map((part, i) =>
-        i % 2 === 1 ? (
+        i % 2 === 1 && standalone ? (
+          // On a real phone the link is a plain link to the upload page's URL on this server.
+          <a key={i} className="bubble-link" href={`/r/${part.slice(PORTAL_LINK_BASE.length)}?client=${encodeURIComponent(clientId)}`}>
+            {part}
+          </a>
+        ) : i % 2 === 1 ? (
           <form key={i} action={openPortalLink} className="bubble-link">
             <input type="hidden" name="clientId" value={clientId} />
             <input type="hidden" name="url" value={part} />
@@ -34,10 +39,13 @@ export function PhoneSimulator({
   clientId,
   messages,
   browser,
+  standalone = false,
 }: {
   clientId: ClientId | null;
   messages: Message[];
   browser: { token: string; state: UploadPageState } | null;
+  /** On the Client's real phone (`/phone`): full-screen, no frame, Portal links are real links. */
+  standalone?: boolean;
 }) {
   if (clientId && browser) {
     return (
@@ -58,14 +66,14 @@ export function PhoneSimulator({
     );
   }
   return (
-    <section className="phone" aria-label="Client phone simulator">
+    <section className={standalone ? "phone standalone" : "phone"} aria-label="Client phone simulator">
       <div className="phone-screen">
         <header className="phone-header">Messages</header>
         <div className={messages.length === 0 ? "phone-thread empty" : "phone-thread"} role="log" aria-label="Messages">
           {messages.length === 0 ? (
             <p className="phone-empty">No messages</p>
           ) : (
-            clientId && messages.map((m) => <Bubble key={m.id} clientId={clientId} message={m} />)
+            clientId && messages.map((m) => <Bubble key={m.id} clientId={clientId} message={m} standalone={standalone} />)
           )}
         </div>
         {clientId && (

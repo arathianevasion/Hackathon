@@ -12,7 +12,7 @@ import { demoStore } from "../src/store/demo";
 /** Reset demo: throw away everything and re-seed from today. */
 export async function resetDemo() {
   demoStore().reset(new Date());
-  revalidatePath("/");
+  revalidatePath("/", "layout");
 }
 
 /** Demo control: a DMI is opened for this Client, which runs the Assistant once. */
@@ -21,7 +21,7 @@ export async function openDmi(formData: FormData) {
   const dmiId = String(formData.get("dmiId"));
   // The key comes from .env.local (git-ignored), which Next.js loads into the environment.
   await runAssistant({ name: "dmi.detected", clientId, dmiId }, { store: demoStore(), now: () => new Date(), model: new Anthropic() });
-  revalidatePath("/");
+  revalidatePath("/", "layout");
 }
 
 /** The Client types a reply in the phone: it is masked and stored, then runs the Assistant once. */
@@ -31,7 +31,7 @@ export async function sendClientReply(formData: FormData) {
   if (typed === "") return;
   const deps = { store: demoStore(), now: () => new Date(), model: new Anthropic() };
   await runAssistant(receiveClientText(deps, clientId, typed), deps);
-  revalidatePath("/");
+  revalidatePath("/", "layout");
 }
 
 /** The Client taps a Portal link in a text: the in-phone browser opens it, starting the upload session on first open. */
@@ -56,9 +56,9 @@ export async function uploadDocument(formData: FormData) {
   try {
     event = receiveUpload(deps, url, upload);
   } catch {
-    revalidatePath("/");
+    revalidatePath("/", "layout");
     return;
   }
   await runAssistant(event, deps);
-  revalidatePath("/");
+  revalidatePath("/", "layout");
 }

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { assistantTextsAbout } from "../src/assistant/firstText";
 import { uploadPageState } from "../src/portal/uploadPage";
 import { openDmi, resetDemo } from "./actions";
+import { AutoRefresh } from "./AutoRefresh";
 import { PhoneSimulator } from "./PhoneSimulator";
 
 export const dynamic = "force-dynamic";
@@ -39,12 +40,13 @@ function timeLabel(at: string): string {
   return new Date(at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-export default async function AgentView({ searchParams }: { searchParams: Promise<{ client?: string; portal?: string }> }) {
+export default async function AgentView({ searchParams }: { searchParams: Promise<{ client?: string; portal?: string; phone?: string }> }) {
   const store = demoStore();
   const rows = rankByDeadline(store.list("clients"), store.list("dmis"), toIsoDate(new Date()));
   const params = await searchParams;
   const selectedId = params.client ?? null;
   const browser = params.portal ? { token: params.portal, state: uploadPageState(store, params.portal, new Date()) } : null;
+  const showPhone = params.phone !== "off";
   const selected = store.list("clients").find((c) => c.id === selectedId) ?? null;
   const thread = selected ? store.list("messages").filter((m) => m.clientId === selected.id) : [];
   const actionLog = selected ? store.list("actionLog").filter((e) => e.clientId === selected.id) : [];
@@ -55,6 +57,7 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
 
   return (
     <main className="page">
+      <AutoRefresh />
       <header className="topbar">
         <div>
           <h1>Your Enrollment Follow-ups</h1>
@@ -65,7 +68,7 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
         </form>
       </header>
 
-      <div className="layout">
+      <div className={showPhone ? "layout" : "layout no-phone"}>
         <section className="queue" aria-label="Clients by deadline">
           <div className="row head" role="row">
             <span>Client</span>
@@ -161,7 +164,7 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
           </section>
         )}
 
-        <PhoneSimulator clientId={selected?.id ?? null} messages={thread} browser={selected ? browser : null} />
+        {showPhone && <PhoneSimulator clientId={selected?.id ?? null} messages={thread} browser={selected ? browser : null} />}
       </div>
     </main>
   );

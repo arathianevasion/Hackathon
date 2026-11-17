@@ -98,7 +98,7 @@ export function UploadPage({ token, state }: { token: string; state: UploadPageS
       ) : (
         <p className="cap">Your photo must show {copy.must}.</p>
       )}
-      <form ref={form} action={uploadDocument} className="drop">
+      <form ref={form} action={uploadDocument} className="drop" aria-busy={sending}>
         <input type="hidden" name="token" value={token} />
         <input type="hidden" name="choice" value={choice} />
         <span className="big">Upload {copy.choices[0].label.toLowerCase()}</span>
