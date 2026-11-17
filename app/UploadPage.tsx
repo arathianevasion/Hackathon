@@ -27,7 +27,10 @@ function SpecimenStub() {
 export function UploadPage({ token, state }: { token: string; state: UploadPageState }) {
   const form = useRef<HTMLFormElement>(null);
   const [choice, setChoice] = useState(state.kind === "expired" ? "" : state.copy.choices[0].label);
-  const [sending, setSending] = useState(false);
+  // Sending lasts until the page's attempt count moves on, i.e. the upload has been checked.
+  const [sendingAt, setSendingAt] = useState<number | null>(null);
+  const attempt = state.kind === "expired" ? 0 : state.attempt;
+  const sending = sendingAt === attempt;
 
   if (state.kind === "expired") {
     return (
@@ -64,13 +67,24 @@ export function UploadPage({ token, state }: { token: string; state: UploadPageS
   }
 
   const pick = () => {
-    setSending(true);
+    setSendingAt(attempt);
     form.current?.requestSubmit();
   };
 
   return (
     <div className="pg">
       {head}
+      {state.fixes && !sending && (
+        <div className="status warn" role="alert">
+          <span className="t">{state.fixes.title}</span>
+          <ul className="fixes">
+            {state.fixes.fixes.map((fix) => (
+              <li key={fix}>{fix}</li>
+            ))}
+          </ul>
+          <span>{state.fixes.closing}</span>
+        </div>
+      )}
       <details>
         <summary>Why am I being asked?</summary>
         <p>

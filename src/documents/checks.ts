@@ -31,7 +31,16 @@ export interface Judgement {
 
 const PERIODS_PER_YEAR = { weekly: 52, biweekly: 26, semimonthly: 24, monthly: 12 } as const;
 
-const FIELD_LABEL: Record<RequiredField, string> = {
+/** The reasons the checks give that guidance needs to recognise; one place, so the words can't drift apart. */
+export const REASON = {
+  cropped: "The document is cropped",
+  illegible: "The document is not legible",
+  nameMismatch: "The name does not match the Client",
+  missing: (field: RequiredField) => `${FIELD_LABEL[field]} is missing`,
+  ssnMismatchPrefix: "The SSN ending ",
+} as const;
+
+export const FIELD_LABEL: Record<RequiredField, string> = {
   name: "Name",
   ssn: "SSN",
   pay: "Pay",
@@ -61,18 +70,18 @@ export function judgeDocument(input: JudgeInput): Judgement {
       case 1:
         if (!(ALLOWED_MEDIA_TYPES as readonly string[]).includes(input.file.mediaType)) fail(1, "The file is not a photo, JPG, PNG or PDF");
         if (input.file.sizeBytes >= MAX_FILE_BYTES) fail(1, "The file is 10 MB or larger");
-        if (!fields.legible) fail(1, "The document is not legible");
-        if (fields.cropped) fail(1, "The document is cropped");
+        if (!fields.legible) fail(1, REASON.illegible);
+        if (fields.cropped) fail(1, REASON.cropped);
         break;
       case 2:
         if (!docKey) fail(2, "Not a document that works for this DMI");
         break;
       case 3:
-        if (fields.name !== null && !sameName(fields.name, input.client)) fail(3, "The name does not match the Client");
+        if (fields.name !== null && !sameName(fields.name, input.client)) fail(3, REASON.nameMismatch);
         break;
       case 4:
         for (const field of docKey ? rules.requiredFields[docKey] : ["name" as const]) {
-          if (!present(fields, field)) fail(4, `${FIELD_LABEL[field]} is missing`);
+          if (!present(fields, field)) fail(4, REASON.missing(field));
         }
         break;
       case 5: {
@@ -88,7 +97,7 @@ export function judgeDocument(input: JudgeInput): Judgement {
             fail(6, `Annualized income is more than ${INCOME_MISMATCH_THRESHOLD * 100}% from the income on the application`);
           }
         } else if (fields.ssn !== null && digits(fields.ssn) !== digits(input.application.ssn)) {
-          fail(6, `The SSN ending ${digits(fields.ssn).slice(-4)} does not match the application`);
+          fail(6, `${REASON.ssnMismatchPrefix}${digits(fields.ssn).slice(-4)} does not match the application`);
         }
         break;
     }

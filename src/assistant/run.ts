@@ -2,6 +2,7 @@ import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaToolRunnerParams } from "@anthropic-ai/sdk/resources/beta/messages";
 import { z } from "zod";
 import type { ClientId, DomainEvent, ToolName } from "../contract";
+import { guidanceFor, guidanceText } from "../documents/guidance";
 import { extractFields, FALLBACK_BETA, type ExtractionClient } from "../documents/extract";
 import type { Store } from "../store/store";
 import { assistantTextsAbout, firstText, PORTAL_LINK_SLOT } from "./firstText";
@@ -72,7 +73,8 @@ export async function runAssistant(event: DomainEvent, deps: RunDeps): Promise<v
 /**
  * A Client uploaded a Document: the Assistant runs the check, and only a
  * sufficient result goes on to the mocked Marketplace and a confirmation text.
- * Anything else stops here for now (insufficient and ambiguous uploads are #18, #19).
+ * An insufficient one gets every fix texted, or an Escalation on the second
+ * (`followUpInsufficient`). Ambiguous uploads stop here for now (#19).
  */
 async function checkUpload(event: Extract<DomainEvent, { name: "document.uploaded" }>, deps: RunDeps): Promise<void> {
   const doc = deps.store.list("documents").find((d) => d.id === event.documentId && d.dmiId === event.dmiId);
@@ -89,6 +91,45 @@ async function checkUpload(event: Extract<DomainEvent, { name: "document.uploade
     `<confirmation>${confirmationText(doc.documentType)}</confirmation>`,
   ].join("\n");
   await runModel(event.clientId, prompt, deps, ["check_consent", "precheck_document", "submit_documents", "send_text"]);
+  await followUpInsufficient(event, deps);
+}
+
+/**
+ * What follows an insufficient result, in code: the model only ran the check
+ * (ADR 0001). The first insufficient upload for a DMI gets the fixes in a text
+ * written from the failed rules; the second raises an Escalation, with no text.
+ * A Document that failed on who it belongs to is not sent back: it is left for
+ * the Agent (finding on #44).
+ */
+async function followUpInsufficient(event: Extract<DomainEvent, { name: "document.uploaded" }>, { store, now }: RunDeps): Promise<void> {
+  const doc = store.list("documents").find((d) => d.id === event.documentId);
+  if (doc?.precheck.result !== "insufficient") return;
+  const guidance = guidanceFor(doc.precheck.reasons);
+  if (!guidance) return;
+  const tools = createTools({
+    store,
+    now,
+    extract: async () => {
+      throw new Error("Following up reads nothing");
+    },
+  });
+  const insufficient = store
+    .list("documents")
+    .filter((d) => d.dmiId === event.dmiId && d.precheck.result === "insufficient" && guidanceFor(d.precheck.reasons) !== null);
+  if (insufficient.length < 2) {
+    await tools.send_text({ clientId: event.clientId, text: guidanceText(guidance) });
+    return;
+  }
+  const client = store.list("clients").find((c) => c.id === event.clientId);
+  const dmi = store.list("dmis").find((d) => d.id === event.dmiId);
+  if (!client || !dmi) throw new Error(`No DMI ${event.dmiId} for Client ${event.clientId}`);
+  await tools.escalate_to_agent({
+    clientId: event.clientId,
+    trigger: "insufficient_twice",
+    summary: `Two uploads for the ${dmi.type} DMI were insufficient. The second: ${doc.precheck.reasons.join("; ")}.`,
+    clientWords: store.list("messages").filter((m) => m.clientId === event.clientId && m.sender === "client").at(-1)?.text ?? null,
+    suggestedNextStep: `Call ${client.firstName} to help get a document that passes, or ask the Marketplace for more time.`,
+  });
 }
 
 const FIRST_TEXT_TOOLS: ToolName[] = ["check_consent", "create_portal_link", "send_text"];

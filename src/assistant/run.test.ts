@@ -285,7 +285,9 @@ describe("runAssistant on document.uploaded", () => {
   const rosaUploads = (model: ReturnType<typeof scriptedUploadModel>) => {
     const deps = { store, now: () => NOW, model: model.client };
     const link = issuePortalLink(store, ROSA, "dmi-01", NOW);
-    store.add("messages", { id: "msg-first", clientId: ROSA, sender: "assistant", sentAt: NOW.toISOString(), text: `First text with ${link.url}` });
+    if (!store.list("messages").some((m) => m.id === "msg-first")) {
+      store.add("messages", { id: "msg-first", clientId: ROSA, sender: "assistant", sentAt: NOW.toISOString(), text: `First text with ${link.url}` });
+    }
     openUploadSession(store, link.url, NOW);
     const event = receiveUpload(deps, link.url, { choice: "Pay stub", fileName: "stub.png", mediaType: "image/png", bytes: Buffer.from("SPECIMEN") });
     return runAssistant(event, deps).then(() => event);
@@ -312,11 +314,42 @@ describe("runAssistant on document.uploaded", () => {
     expect(model.calls[0]).toMatchObject({ model: "claude-sonnet-5-5", output_config: { effort: "low" } });
   });
 
-  it("submits nothing and texts nothing for an insufficient upload", async () => {
-    const model = scriptedUploadModel({ ...FULL_STUB, cropped: true, name: null });
-    await rosaUploads(model);
+  const CROPPED: ExtractedFields = { ...FULL_STUB, cropped: true, name: null, payPeriodStart: null, payPeriodEnd: null };
+  const afterFirst = () => store.list("messages").filter((m) => m.clientId === ROSA && m.id !== "msg-first");
+
+  it("submits nothing for a cropped stub and texts every fix, written from the failed rules", async () => {
+    const model = scriptedUploadModel(CROPPED);
+    const event = await rosaUploads(model);
     expect(store.list("dmis").find((d) => d.id === "dmi-01")!.status).toBe("open");
-    expect(store.list("messages").filter((m) => m.clientId === ROSA && m.id !== "msg-first")).toEqual([]);
+    expect(store.list("documents").find((d) => d.id === event.documentId)!.precheck).toMatchObject({
+      result: "insufficient",
+      reasons: ["The document is cropped", "Name is missing", "Pay period is missing"],
+    });
+    expect(afterFirst().map((m) => m.text)).toEqual([
+      "I checked your photo. 2 things to fix:\n1. Your name: the top of the stub is cut off\n2. Pay period: the dates are cut off\n\nRetake the photo with the whole stub in the frame, flat and in good light. Same link.",
+    ]);
+    expect(store.list("escalations").filter((e) => e.clientId === ROSA && e.trigger === "insufficient_twice")).toEqual([]);
+  });
+
+  it("raises an Escalation with all four parts on a second insufficient upload for the same DMI", async () => {
+    await rosaUploads(scriptedUploadModel(CROPPED));
+    store.add("messages", { id: "msg-rosa", clientId: ROSA, sender: "client", sentAt: NOW.toISOString(), text: "ok I'll try again" });
+    await rosaUploads(scriptedUploadModel(CROPPED));
+    const escalations = store.list("escalations").filter((e) => e.clientId === ROSA);
+    expect(escalations).toHaveLength(1);
+    expect(escalations[0]).toMatchObject({
+      trigger: "insufficient_twice",
+      summary: "Two uploads for the income DMI were insufficient. The second: The document is cropped; Name is missing; Pay period is missing.",
+      clientWords: "ok I'll try again",
+      suggestedNextStep: "Call Rosa to help get a document that passes, or ask the Marketplace for more time.",
+      status: "open",
+    });
+    expect(store.list("actionLog").at(-1)).toMatchObject({ tool: "escalate_to_agent" });
+  });
+
+  it("does not send fixes for a name mismatch with the application: that is not a retake", async () => {
+    await rosaUploads(scriptedUploadModel({ ...FULL_STUB, name: "Someone Else" }));
+    expect(afterFirst()).toEqual([]);
   });
 
   it("refuses submit_documents even when the model calls it on an insufficient result", async () => {
@@ -329,7 +362,7 @@ describe("runAssistant on document.uploaded", () => {
     });
     await rosaUploads(model);
     expect(store.list("dmis").find((d) => d.id === "dmi-01")!.status).toBe("open");
-    expect(store.list("actionLog").at(-1)).toMatchObject({ tool: "submit_documents", result: expect.stringMatching(/^Refused: .* is not sufficient$/) });
+    expect(store.list("actionLog").filter((l) => l.tool === "submit_documents").at(-1)).toMatchObject({ result: expect.stringMatching(/^Refused: .* is not sufficient$/) });
   });
 });
 

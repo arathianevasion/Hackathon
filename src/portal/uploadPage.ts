@@ -1,5 +1,6 @@
 import { dueDateLabel } from "../assistant/firstText";
 import type { DmiType } from "../contract";
+import { guidanceFor, type Guidance } from "../documents/guidance";
 import type { Store } from "../store/store";
 import { PORTAL_LINK_BASE, uploadSession } from "./portalLink";
 
@@ -54,7 +55,17 @@ export function uploadPageCopy(type: DmiType): UploadPageCopy {
 
 /** What the in-phone browser shows for a Portal link: never more than the first name, DMI type and due date. */
 export type UploadPageState =
-  | { kind: "open" | "submitted"; firstName: string; dmiType: DmiType; due: string; copy: UploadPageCopy }
+  | {
+      kind: "open" | "submitted";
+      firstName: string;
+      dmiType: DmiType;
+      due: string;
+      copy: UploadPageCopy;
+      /** The fixes after the latest upload failed its check; never the upload itself. */
+      fixes: Guidance | null;
+      /** How many uploads this DMI has had, so the page knows when a new one has been checked. */
+      attempt: number;
+    }
   | { kind: "expired" };
 
 /** The upload page for a Portal link token, inside its upload session; anything else reads as expired. */
@@ -64,11 +75,15 @@ export function uploadPageState(store: Store, token: string, at: Date): UploadPa
   const dmi = store.list("dmis").find((d) => d.id === session.link.dmiId);
   const client = store.list("clients").find((c) => c.id === session.link.clientId);
   if (!dmi || !client) return { kind: "expired" };
+  const uploads = store.list("documents").filter((d) => d.dmiId === dmi.id);
+  const latest = uploads.at(-1);
   return {
     kind: dmi.status === "documents_submitted" ? "submitted" : "open",
     firstName: client.firstName,
     dmiType: dmi.type,
     due: dueDateLabel(dmi.deadline),
     copy: uploadPageCopy(dmi.type),
+    fixes: latest?.precheck.result === "insufficient" ? guidanceFor(latest.precheck.reasons) : null,
+    attempt: uploads.length,
   };
 }
