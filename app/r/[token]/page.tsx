@@ -29,7 +29,13 @@ export default async function PortalUploadPage({
         <a href={client ? `/phone?client=${encodeURIComponent(client)}` : "/phone"} className="br-done">
           Done
         </a>
-        <span className="br-url">portal.example/r/{token}</span>
+        <span className="br-url">
+              <svg className="lock" width="9" height="11" viewBox="0 0 9 11" aria-hidden="true">
+                <rect x="0.5" y="4.5" width="8" height="6" rx="1.2" />
+                <path d="M2.3 4.5V3a2.2 2.2 0 0 1 4.4 0v1.5" />
+              </svg>
+              portal.example/r/{token}
+            </span>
       </div>
       <div className="br-body">
         <UploadPage token={token} state={state} />
