@@ -1,5 +1,6 @@
 import { openUploadSession, PORTAL_LINK_BASE } from "../../../src/portal/portalLink";
 import { uploadPageState } from "../../../src/portal/uploadPage";
+import { demoClock } from "../../../src/cadence/demo";
 import { demoStore } from "../../../src/store/demo";
 import { UploadPage } from "../../UploadPage";
 
@@ -20,7 +21,7 @@ export default async function PortalUploadPage({
   const { token } = await params;
   const { client } = await searchParams;
   const store = demoStore();
-  const now = new Date();
+  const now = demoClock().now();
   openUploadSession(store, `${PORTAL_LINK_BASE}${token}`, now);
   const state = uploadPageState(store, token, now);
   return (

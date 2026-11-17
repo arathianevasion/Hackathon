@@ -66,11 +66,11 @@ export async function openPortalLink(formData: FormData) {
 }
 
 /** The Client uploads a file on the upload page: it is stored, then runs the Assistant once to check it. */
-export async function uploadDocument(formData: FormData) {
+export async function uploadDocument(formData: FormData): Promise<{ taken: boolean }> {
   const url = `${PORTAL_LINK_BASE}${String(formData.get("token"))}`;
   // "Take a photo" and "Choose a file" are two inputs; only the one the Client used holds a file.
   const file = formData.getAll("file").find((f): f is File => f instanceof File && f.size > 0);
-  if (!file) return;
+  if (!file) return { taken: false };
   const deps = { store: demoStore(), now: demoClock().now, model: new Anthropic() };
   const upload = { choice: String(formData.get("choice")), fileName: file.name, mediaType: file.type, bytes: new Uint8Array(await file.arrayBuffer()) };
   // Outside its upload session the page already shows the link as expired; there is nothing to take.
@@ -79,10 +79,11 @@ export async function uploadDocument(formData: FormData) {
     event = receiveUpload(deps, url, upload);
   } catch {
     revalidatePath("/", "layout");
-    return;
+    return { taken: false };
   }
   await runAssistant(event, deps);
   revalidatePath("/", "layout");
+  return { taken: true };
 }
 
 /** The Client taps "I'll come back later" on the upload page: the link closes and the Assistant texts the promise. */

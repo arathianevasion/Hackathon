@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { openStore, type Store } from "../src/store/store";
 import AgentView from "./page";
 import PhonePage from "./phone/page";
@@ -106,5 +106,33 @@ describe("the upload page's way out", () => {
     expect(html).toContain("For your security, this link is now closed. Nothing was sent to the Marketplace.");
     expect(html).not.toContain("Take a photo");
     expect(html).not.toContain("come back later</button>");
+  });
+});
+
+describe("the upload page after a demo fast-forward", () => {
+  afterEach(async () => (await import("../src/cadence/demo")).resetDemoClock());
+
+  it("opens the upload session on the demo clock, so the upload action can take the upload", async () => {
+    const { demoClock, resetDemoClock } = await import("../src/cadence/demo");
+    resetDemoClock();
+    demoClock().advance(3 * 24 * 60 * 60 * 1000);
+    const link = issuePortalLink(store, ROSA, "dmi-01", demoClock().now());
+    const token = link.url.slice(PORTAL_LINK_BASE.length);
+    const props = { params: Promise.resolve({ token }), searchParams: Promise.resolve({}) };
+    const html = await render(UploadRoute(props));
+    expect(html).toContain("Take a photo");
+    const { receiveUpload } = await import("../src/portal/upload");
+    const bytes = new Uint8Array([1, 2, 3]);
+    const upload = { choice: "Pay stub", fileName: "a.png", mediaType: "image/png", bytes };
+    expect(() => receiveUpload({ store, now: demoClock().now }, link.url, upload)).not.toThrow();
+  });
+
+  it("tells the upload form a refused upload was not taken, so it stops showing the spinner", async () => {
+    const { uploadDocument } = await import("./actions");
+    const form = new FormData();
+    form.set("token", "NOSUCHTOKEN");
+    form.set("choice", "Pay stub");
+    form.set("file", new File([new Uint8Array([1, 2, 3])], "a.png", { type: "image/png" }));
+    expect(await uploadDocument(form)).toEqual({ taken: false });
   });
 });
