@@ -157,10 +157,10 @@ body:has(.desk) { background: var(--desk); font-size: 15px; letter-spacing: 0; }
 .queue { background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
 .qhead { padding: 18px 20px 12px; }
 .qhead h2 { margin: 0 0 var(--space-3); font-size: 15px; font-weight: 700; color: var(--muted); }
-.filters { display: flex; flex-wrap: wrap; gap: 5px; }
+.filters { display: flex; gap: 5px; }
 .filter {
   display: inline-flex; gap: 6px; align-items: baseline; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg);
-  border-radius: 999px; padding: 4px 9px; font-size: 12px; white-space: nowrap; text-decoration: none;
+  border-radius: 999px; padding: 4px 7px; font-size: 12px; white-space: nowrap; text-decoration: none;
 }
 .filter:hover { border-color: var(--accent); }
 .filter b { font-family: var(--data); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -202,8 +202,8 @@ body:has(.desk) { background: var(--desk); font-size: 15px; letter-spacing: 0; }
 .case-empty { padding: 48px 36px; text-align: center; }
 .case-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px var(--space-5); align-items: end; }
 .case-head h2 { font-size: 28px; line-height: 1.15; font-weight: 900; letter-spacing: -0.015em; }
-.case-head .sub { color: var(--muted); font-size: 14px; }
-.case-head .actions { grid-row: 1 / span 2; grid-column: 2; display: flex; gap: var(--space-2); align-self: start; }
+.case-head .sub { grid-column: 1 / -1; color: var(--muted); font-size: 14px; }
+.case-head .actions { grid-row: 1; grid-column: 2; display: flex; gap: var(--space-2); align-self: start; }
 .clockline { margin: 22px 0 6px; display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); font-size: 13px; color: var(--muted); }
 .clockline .big { font-family: var(--data); font-size: 22px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
 .clockline .big.soon { color: var(--crit); }
