@@ -43,7 +43,7 @@ The Assistant gets exactly ten tools, with guardrails enforced in tool code, and
 | `precheck_document` | Runs the document check | Separate extraction call with no tools |
 | `submit_documents` | Submits to the mocked Marketplace | Only after a sufficient result |
 | `get_dmi_status` | Reads Marketplace status | — |
-| `escalate_to_agent` | Raises an Escalation | Pauses the Assistant for that Client |
+| `escalate_to_agent` | Raises an Escalation | Pauses the Assistant for that Client, except `client_asked_for_agent` |
 
 **Not provided:** changing application data, requesting a special enrollment period, capturing consent, voice calls.
 
@@ -136,6 +136,8 @@ The Assistant acts only under a checked Consent record, and hands the Agent anyt
 
 Every Escalation carries the trigger, a summary, the Client's own words and a suggested next step.
 
+An Escalation pauses the Assistant, except one: `client_asked_for_agent`. The Client said yes to having the Agent contact them about a topic unrelated to their DMI (see "Unrelated topics" below). The Agent must act on it, but nudges, the upload page and replies about the DMI carry on as before, the upload page does not switch to "Your agent will contact you", and "Mark handled" closes it and changes nothing else.
+
 **Nudge schedule** (a deterministic cadence engine decides timing; the model never does)
 
 | Days left on the DMI | Nudge (fresh Portal link) | Escalation and pause |
@@ -144,7 +146,7 @@ Every Escalation carries the trigger, a summary, the Client's own words and a su
 | 14 or fewer | Day 1 | Day 2 |
 
 - A Client reply that they have the document ("ready") gets a fresh link and cancels the scheduled nudge.
-- No nudges while an Escalation is open.
+- No nudges while an Escalation is open, except `client_asked_for_agent`.
 - When the Agent texts in the Thread, the Assistant holds its replies and nudges for that Client until the Agent hands back. If an Escalation is still open then, the Assistant stays paused until the Agent marks it handled.
 - After an opt-out, nobody texts the Client from this number, the Agent included, until the Client replies START.
 - If the Agent says "keep trying": one reminder before each of the Marketplace's 60-day and 30-day warnings.
@@ -160,7 +162,20 @@ The Client never leaves their phone: short texts carry the conversation, and the
 - Answers to "why?" are a sentence or two and point to the page.
 - No personal data in any text. If the Client texts an SSN, it is masked to the last 4 before storage or the model sees it, never repeated, and the Client is asked to use the link.
 - The AI disclosure repeats after 7 or more quiet days, and whenever the Client asks.
+- A topic unrelated to the DMI gets the unrelated-topic text (below); it raises no Escalation by itself.
 - Texts the Agent sends from the Thread come from the same number and start with "Andrew here:" (the Agent's first name), so the Client knows a person is writing.
+
+**Unrelated topics** (for example dental coverage, a billing question, a different policy). The model picks the fixed wording; it never writes its own (ADR 0001). After 7 quiet days it opens with the AI disclosure, like the other replies.
+
+> Thanks for asking! I can only help with the document the Marketplace asked for, so I can't answer that here. Want Andrew, your licensed agent, to contact you about it? Just reply yes and I'll pass it on.
+
+- A clear yes to that offer raises a `client_asked_for_agent` Escalation: the summary says what the Client asked about, the Client's own words are the unrelated message (not the "yes"), and the suggested next step is to call the Client about their question, which isn't about their DMI. It does not pause the Assistant. The Client then gets:
+
+> Done. Andrew will contact you about it. Your document for the Marketplace is still due, and your link still works: {link}
+
+- A question about the DMI after the unrelated-topic text gets the existing "why" or "ready" wording with a Portal link.
+- A "no", or silence, raises nothing, and the DMI follow-up carries on.
+- **Link reuse:** the link in the confirmation, and in a "why" or "ready" reply after the unrelated-topic text, is the Client's current Portal link for the DMI if it is still live (not used, not expired, not closed). Otherwise it is a fresh one, which counts toward the 3-per-24-hours limit.
 
 **Upload page** (same page on every attempt)
 
@@ -177,7 +192,7 @@ The Client never leaves their phone: short texts carry the conversation, and the
 3. The Assistant confirms by text and says when it will check in.
 4. "ready" gets a fresh link and cancels the nudge. Silence follows the nudge schedule, each nudge carrying a fresh link.
 
-**Link states:** an expired link shows "This link has expired. Reply to our text and we'll send you a new one." A paused DMI (Escalation open) shows "Your agent will contact you" and asks for no upload.
+**Link states:** an expired link shows "This link has expired. Reply to our text and we'll send you a new one." A paused DMI (a pausing Escalation open) shows "Your agent will contact you" and asks for no upload.
 
 In the demo app the phone is a simulator: a Messages view and an in-phone browser, with "Done" returning to Messages.
 

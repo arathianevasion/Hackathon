@@ -8,6 +8,8 @@ import { fastForward, nextNudgeAt } from "../cadence/engine";
 import { receiveClientText } from "./inbound";
 import { createTools } from "./tools";
 import { CLARIFYING_QUESTION } from "./replies";
+import { AGENT_TEXTED_LOGGED, isPaused, markEscalationHandled } from "./escalations";
+import { uploadPageState } from "../portal/uploadPage";
 import { confirmationText, runAssistant, type ModelClient, type RunnerParams } from "./run";
 
 const NOW = new Date("2026-11-16T15:00:00Z");
@@ -171,14 +173,23 @@ function scriptedReplyModel() {
               });
               return;
             }
+            if (/^yes\b/i.test(message) && prompt.includes("- client_asked_for_agent:")) {
+              await tool("escalate_to_agent").run({ trigger: "client_asked_for_agent", summary: "Asks whether her plan covers dental." });
+              return;
+            }
             const pick = offered("ssn")
               ? "ssn"
               : /later|not now|this weekend/i.test(message)
                 ? "later"
-                : /^ready\b/i.test(message)
+                : /^ready\b|send me the link/i.test(message)
                   ? "ready"
-                  : /why/i.test(message)
-                    ? "why" : /\b(ai|bot|robot|human|real person)\b/i.test(message) ? "disclosure" : null;
+                  : /why|what do you need/i.test(message)
+                    ? "why"
+                    : /\b(ai|bot|robot|human|real person)\b/i.test(message)
+                      ? "disclosure"
+                      : /dental|bill/i.test(message)
+                        ? "unrelated"
+                        : null;
             const offeredText = pick && offered(pick);
             if (!offeredText) return;
             let text = offeredText;
@@ -381,6 +392,180 @@ describe("runAssistant on client.message", () => {
       expect(model.calls).toHaveLength(1);
       expect(thread(MARCUS).map((m) => m.sender)).toEqual(["client", "assistant", "client"]);
       expect(open(MARCUS)).toHaveLength(1);
+    });
+  });
+
+  describe("a reply on a topic unrelated to the DMI", () => {
+    const DENTAL = "Does my plan cover dental? My tooth hurts";
+    const UNRELATED =
+      "Thanks for asking! I can only help with the document the Marketplace asked for, so I can't answer that here. Want Andrew, your licensed agent, to contact you about it? Just reply yes and I'll pass it on.";
+    const links = () => store.list("portalLinks").filter((l) => l.clientId === ROSA);
+    const escalations = () => store.list("escalations").filter((e) => e.clientId === ROSA);
+    const firstText = () =>
+      store.add("messages", { id: "msg-first", clientId: ROSA, sender: "assistant", sentAt: NOW.toISOString(), text: "first text" });
+    const confirmation = (url: string) =>
+      `Done. Andrew will contact you about it. Your document for the Marketplace is still due, and your link still works: ${url}`;
+
+    it("gets the unrelated-topic text word for word, and raises no Escalation and no link", async () => {
+      firstText();
+      await reply(ROSA, DENTAL, scriptedReplyModel());
+      expect(thread(ROSA).at(-1)!.text).toBe(UNRELATED);
+      expect(escalations()).toEqual([]);
+      expect(links()).toEqual([]);
+    });
+
+    it("opens with the AI disclosure after 7 quiet days", async () => {
+      firstText();
+      await reply(ROSA, DENTAL, scriptedReplyModel(), new Date(NOW.getTime() + 8 * 86_400_000));
+      expect(thread(ROSA).at(-1)!.text).toBe(`I'm the AI assistant for your insurance agent, Andrew. ${UNRELATED}`);
+    });
+
+    it("a yes to the offer raises client_asked_for_agent with the unrelated message as the Client's words", async () => {
+      firstText();
+      const model = scriptedReplyModel();
+      await reply(ROSA, DENTAL, model);
+      await reply(ROSA, "yes please", model);
+      expect(escalations()).toMatchObject([
+        {
+          trigger: "client_asked_for_agent",
+          status: "open",
+          summary: "Asks whether her plan covers dental.",
+          clientWords: DENTAL,
+          suggestedNextStep: "Call Rosa about their question, which isn't about their DMI.",
+        },
+      ]);
+    });
+
+    it("then confirms word for word, with a fresh Portal link when none is live", async () => {
+      firstText();
+      const model = scriptedReplyModel();
+      await reply(ROSA, DENTAL, model);
+      await reply(ROSA, "yes", model);
+      expect(links()).toHaveLength(1);
+      expect(thread(ROSA).at(-1)!.text).toBe(confirmation(links()[0].url));
+    });
+
+    it("reuses the live Portal link in the confirmation, and creates no new one", async () => {
+      firstText();
+      const live = issuePortalLink(store, ROSA, "dmi-01", NOW);
+      const model = scriptedReplyModel();
+      await reply(ROSA, DENTAL, model);
+      await reply(ROSA, "yes", model);
+      expect(links()).toHaveLength(1);
+      expect(thread(ROSA).at(-1)!.text).toBe(confirmation(live.url));
+    });
+
+    it.each([
+      ["used", (url: string) => openUploadSession(store, url, NOW)],
+      ["closed", (url: string) => store.update("portalLinks", { ...links().find((l) => l.url === url)!, closedAt: NOW.toISOString() })],
+      ["expired", () => undefined],
+    ] as const)("replaces a %s link with a fresh one", async (state, spoil) => {
+      firstText();
+      const issuedAt = state === "expired" ? new Date(NOW.getTime() - 73 * 3_600_000) : NOW;
+      const old = issuePortalLink(store, ROSA, "dmi-01", issuedAt);
+      spoil(old.url);
+      const model = scriptedReplyModel();
+      await reply(ROSA, DENTAL, model);
+      await reply(ROSA, "yes", model);
+      const fresh = links().at(-1)!;
+      expect(fresh.url).not.toBe(old.url);
+      expect(thread(ROSA).at(-1)!.text).toBe(confirmation(fresh.url));
+    });
+
+    it("that Escalation does not pause the Assistant: nudges, the upload page and DMI replies carry on", async () => {
+      firstText();
+      const model = scriptedReplyModel();
+      await reply(ROSA, DENTAL, model);
+      await reply(ROSA, "yes", model);
+      expect(isPaused(store, ROSA)).toBe(false);
+      expect(nextNudgeAt(store, ROSA)).not.toBeNull();
+      const link = links()[0];
+      openUploadSession(store, link.url, NOW);
+      expect(uploadPageState(store, link.id, NOW).kind).toBe("open");
+      await reply(ROSA, "Why do they need this?", model);
+      expect(thread(ROSA).at(-1)!.text).toMatch(/^It's a routine check\./);
+
+      const clock = createClock(NOW);
+      const tools = createTools({ store, now: clock.now, extract: async () => ({}) as never });
+      clock.set(nextNudgeAt(store, ROSA)!);
+      expect(await fastForward({ store, clock, tools }, 0.0001)).toMatchObject([{ clientId: ROSA, step: "nudge" }]);
+    });
+
+    it("Mark handled closes it and changes nothing else", async () => {
+      firstText();
+      const model = scriptedReplyModel();
+      await reply(ROSA, DENTAL, model);
+      await reply(ROSA, "yes", model);
+      const nudgeAt = nextNudgeAt(store, ROSA);
+      markEscalationHandled(store, escalations()[0].id, new Date(NOW.getTime() + 3_600_000));
+      expect(escalations()[0].status).toBe("handled");
+      expect(nextNudgeAt(store, ROSA)).toEqual(nudgeAt);
+    });
+
+    it.each([
+      ["ok, what do you need from me?", "It's a routine check."],
+      ["send me the link", "Great. Here's a new link, good for 3 days: "],
+    ])("a DMI question after it (%s) gets the existing wording, reusing the live link", async (typed, opening) => {
+      firstText();
+      const live = issuePortalLink(store, ROSA, "dmi-01", NOW);
+      const model = scriptedReplyModel();
+      await reply(ROSA, DENTAL, model);
+      await reply(ROSA, typed, model);
+      expect(thread(ROSA).at(-1)!.text.startsWith(opening)).toBe(true);
+      expect(thread(ROSA).at(-1)!.text.endsWith(live.url)).toBe(true);
+      expect(links()).toHaveLength(1);
+      expect(escalations()).toEqual([]);
+    });
+
+    it("a DMI question after it gets a fresh link when the old one is used", async () => {
+      firstText();
+      const old = issuePortalLink(store, ROSA, "dmi-01", NOW);
+      openUploadSession(store, old.url, NOW);
+      const model = scriptedReplyModel();
+      await reply(ROSA, DENTAL, model);
+      await reply(ROSA, "send me the link", model);
+      expect(links()).toHaveLength(2);
+      expect(thread(ROSA).at(-1)!.text).toBe(`Great. Here's a new link, good for 3 days: ${links()[1].url}`);
+    });
+
+    it("a no, or a yes with no offer pending, raises nothing", async () => {
+      firstText();
+      const model = scriptedReplyModel();
+      await reply(ROSA, "yes", model);
+      expect(String(model.calls[0].messages[0].content)).not.toContain("client_asked_for_agent");
+      await reply(ROSA, DENTAL, model);
+      await reply(ROSA, "no thanks", model);
+      expect(escalations()).toEqual([]);
+      expect(thread(ROSA).at(-1)!.text).toBe("no thanks");
+      expect(nextNudgeAt(store, ROSA)).not.toBeNull();
+    });
+
+    it("advice about the DMI still goes to advice_or_low_confidence after the offer", async () => {
+      firstText();
+      const model = scriptedReplyModel();
+      await reply(ROSA, DENTAL, model);
+      await reply(ROSA, "Should I report my side gig on my taxes?", model);
+      expect(escalations()).toMatchObject([{ trigger: "advice_or_low_confidence" }]);
+      expect(isPaused(store, ROSA)).toBe(true);
+    });
+
+    it("opt-out holds the unrelated-topic text and the confirmation", async () => {
+      firstText();
+      const model = scriptedReplyModel();
+      await reply(ROSA, DENTAL, model);
+      await reply(ROSA, "STOP", model);
+      await reply(ROSA, "yes", model);
+      await reply(ROSA, "Is my dental bill covered?", model);
+      expect(thread(ROSA).filter((m) => m.sender === "assistant").map((m) => m.text)).toEqual(["first text", UNRELATED]);
+    });
+
+    it("an Agent in the Thread holds the unrelated-topic text", async () => {
+      firstText();
+      store.add("actionLog", { id: "log-agent", clientId: ROSA, tool: "send_text", consentRecordId: null, result: AGENT_TEXTED_LOGGED, at: NOW.toISOString() });
+      const model = scriptedReplyModel();
+      await reply(ROSA, DENTAL, model);
+      expect(model.calls).toEqual([]);
+      expect(thread(ROSA).at(-1)!.text).toBe(DENTAL);
     });
   });
 

@@ -1,18 +1,19 @@
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaToolRunnerParams } from "@anthropic-ai/sdk/resources/beta/messages";
 import { z } from "zod";
-import type { Client, ClientId, DmiType, DomainEvent, EscalationTrigger, Message, ToolName } from "../contract";
+import type { Client, ClientId, DmiType, DomainEvent, Escalation, EscalationTrigger, Message, ToolName } from "../contract";
 import { describeExtracted } from "../documents/checks";
 import { guidanceFor, guidanceText } from "../documents/guidance";
 import { extractFields, FALLBACK_BETA, type ExtractionClient } from "../documents/extract";
 import type { Store } from "../store/store";
 import { assistantTextsAbout, firstText, PORTAL_LINK_SLOT } from "./firstText";
-import { isPaused } from "./escalations";
+import { isPaused, pausingEscalationOpen } from "./escalations";
 import { optKeyword } from "./optOut";
-import { applicationChangeText, CLARIFYING_QUESTION, QUIET_DAYS_FOR_DISCLOSURE, quietDays, replyTexts, SSN_MASK } from "./replies";
+import { applicationChangeText, CLARIFYING_QUESTION, QUIET_DAYS_FOR_DISCLOSURE, quietDays, replyTexts, SSN_MASK, unrelatedText } from "./replies";
 import { createTools } from "./tools";
 import { nextNudgeAt } from "../cadence/engine";
 import { localDate, QUIET_HOURS } from "../cadence/schedule";
+import { livePortalLink, PortalLinkLimitError } from "../portal/portalLink";
 
 /** The model the spec names for the Assistant. */
 export const ASSISTANT_MODEL = "claude-sonnet-5-5";
@@ -125,7 +126,7 @@ async function checkUpload(event: Extract<DomainEvent, { name: "document.uploade
 async function followUpAmbiguous(event: Extract<DomainEvent, { name: "document.uploaded" }>, { store, now, model }: RunDeps): Promise<void> {
   const doc = store.list("documents").find((d) => d.id === event.documentId);
   if (doc?.precheck.result !== "ambiguous") return;
-  if (store.list("escalations").some((e) => e.clientId === event.clientId && e.status === "open")) return;
+  if (pausingEscalationOpen(store, event.clientId)) return;
   const tools = toolsFor({ store, now });
   const ambiguous = store.list("documents").filter((d) => d.dmiId === event.dmiId && d.precheck.result === "ambiguous");
   if (ambiguous.length < 2) {
@@ -164,8 +165,8 @@ async function followUpInsufficient(event: Extract<DomainEvent, { name: "documen
   const insufficient = store
     .list("documents")
     .filter((d) => d.dmiId === event.dmiId && d.precheck.result === "insufficient" && guidanceFor(d.precheck.reasons) !== null);
-  // Once an Escalation is open the Assistant is paused for this Client: nothing more goes out.
-  if (store.list("escalations").some((e) => e.clientId === event.clientId && e.status === "open")) return;
+  // Once a pausing Escalation is open the Assistant is paused for this Client: nothing more goes out.
+  if (pausingEscalationOpen(store, event.clientId)) return;
   if (insufficient.length < 2) {
     await tools.send_text({ clientId: event.clientId, text: guidanceText(guidance) });
     return;
@@ -214,7 +215,9 @@ const REPLY_TRIGGERS = {
     `Call ${firstName} to review the change and update the projected income on the application together.`,
   advice_or_low_confidence: (firstName: string) =>
     `Call ${firstName} about their question. The Assistant gave no answer.`,
+  client_asked_for_agent: (firstName: string) => `Call ${firstName} about their question, which isn't about their DMI.`,
 } satisfies Partial<Record<EscalationTrigger, (firstName: string) => string>>;
+type ReplyTrigger = keyof typeof REPLY_TRIGGERS;
 
 /**
  * escalate_to_agent as the model sees it while answering a reply: it picks the
@@ -223,19 +226,43 @@ const REPLY_TRIGGERS = {
  * fixed wording, so the model cannot give advice. Only an application change gets
  * a text; it goes out before the Escalation pauses the Assistant.
  */
-function replyEscalationTool(client: Client, message: Message, deps: RunDeps) {
+function replyEscalationTool(
+  client: Client,
+  message: Message,
+  deps: RunDeps,
+  offer: { unrelatedMessage: Message; dmiId: string; confirmation: string } | null,
+) {
   const tools = toolsFor(deps);
+  // client_asked_for_agent is on offer only while the Client can still say yes to the Agent.
+  const triggers: [ReplyTrigger, ...ReplyTrigger[]] = offer
+    ? ["income_or_application_change", "advice_or_low_confidence", "client_asked_for_agent"]
+    : ["income_or_application_change", "advice_or_low_confidence"];
   return betaZodTool({
     name: "escalate_to_agent",
     description:
-      "Hands this client to their agent, who must act. You are paused for this client afterwards. Any text the client needs is sent for you; do not send one yourself.",
+      "Hands this client to their agent, who must act. Any text the client needs is sent for you; do not send one yourself.",
     inputSchema: z.object({
-      trigger: z.enum(["income_or_application_change", "advice_or_low_confidence"]),
+      trigger: z.enum(triggers),
       summary: z.string().min(1).max(400).describe("One or two sentences for the agent on what the client said. No advice."),
     }),
     run: async ({ trigger, summary }) => {
       const agent = deps.store.agent();
       if (!agent) throw new Error("No Agent");
+      if (trigger === "client_asked_for_agent") {
+        if (!offer) throw new Error("No offer of the Agent is pending");
+        const raised = await tools.escalate_to_agent({
+          clientId: client.id,
+          trigger,
+          summary,
+          // The Client's own words are what they asked about, not their "yes".
+          clientWords: offer.unrelatedMessage.text,
+          suggestedNextStep: REPLY_TRIGGERS[trigger](client.firstName),
+        });
+        // This Escalation does not pause the Assistant, so the confirmation goes out after it.
+        const url = await portalLinkUrl(client.id, offer.dmiId, deps);
+        if (url) await tools.send_text({ clientId: client.id, text: offer.confirmation.replace(PORTAL_LINK_SLOT, url) });
+        return JSON.stringify(raised);
+      }
       if (trigger === "income_or_application_change") {
         await tools.send_text({ clientId: client.id, text: applicationChangeText(agent.firstName) });
       }
@@ -252,6 +279,36 @@ function replyEscalationTool(client: Client, message: Message, deps: RunDeps) {
   });
 }
 
+/**
+ * The Client's Portal link for a DMI, for the replies after the unrelated-topic
+ * offer: the live one if there is one, otherwise a fresh one, which counts toward
+ * the 3-per-24-hours limit. Null when no link can be issued (no consent, or the limit).
+ */
+async function portalLinkUrl(clientId: ClientId, dmiId: string, deps: RunDeps): Promise<string | null> {
+  const live = livePortalLink(deps.store, clientId, dmiId, deps.now());
+  if (live) return live.url;
+  try {
+    return (await toolsFor(deps).create_portal_link({ clientId, dmiId })).url;
+  } catch (error) {
+    if (error instanceof PortalLinkLimitError || (error instanceof Error && error.message.startsWith("No Portal link:"))) return null;
+    throw error;
+  }
+}
+
+/** create_portal_link as the model sees it after the unrelated-topic offer: it hands back the live link rather than issuing another. */
+function reusingPortalLinkTool(clientId: ClientId, deps: RunDeps) {
+  return betaZodTool({
+    name: "create_portal_link",
+    description: "Returns this client's Portal link for one of their DMIs: the current one if it still opens, otherwise a new single-use one, open for 72 hours. Returns its url.",
+    inputSchema: z.object({ dmiId: z.string() }),
+    run: async ({ dmiId }) => {
+      if (!deps.store.list("dmis").some((d) => d.id === dmiId && d.clientId === clientId)) throw new Error(`${dmiId} is not a DMI of this client`);
+      const live = livePortalLink(deps.store, clientId, dmiId, deps.now());
+      return JSON.stringify(live ? { url: live.url, dmiId, expiresAt: live.expiresAt } : await toolsFor(deps).create_portal_link({ clientId, dmiId }));
+    },
+  });
+}
+
 const FIRST_TEXT_TOOLS: ToolName[] = ["check_consent", "create_portal_link", "send_text"];
 
 async function runModel(
@@ -261,7 +318,8 @@ async function runModel(
   toolNames = FIRST_TEXT_TOOLS,
   extraTools: RunnerParams["tools"] = [],
 ): Promise<void> {
-  const available: RunnerParams["tools"] = [...modelTools(clientId, deps), ...extraTools];
+  // An extra tool replaces the model tool of the same name.
+  const available: RunnerParams["tools"] = [...extraTools, ...modelTools(clientId, deps)];
   await deps.model.beta.messages.toolRunner({
     model: ASSISTANT_MODEL,
     max_tokens: 1024,
@@ -307,6 +365,7 @@ async function answerClient(event: Extract<DomainEvent, { name: "client.message"
     quiet,
     checkInOn: nudgeAt && localDate(nudgeAt, QUIET_HOURS),
   });
+  const offer = pendingAgentOffer(thread, message, agent.firstName, store.list("escalations"));
   const withLink = (id: string, text: string) => `<reply id="${id}">${text}</reply>`;
   const send = `send_text with exactly the text in the reply, with ${PORTAL_LINK_SLOT} (if present) replaced by the url of a Portal link from create_portal_link for this dmi_id. Change nothing else.`;
 
@@ -324,19 +383,30 @@ async function answerClient(event: Extract<DomainEvent, { name: "client.message"
         "Pick the one reply that fits and send it:",
         "- why: they ask why they are being asked or why the Marketplace needs this.",
         "- disclosure: they ask whether you are an AI, a bot or a person.",
+        "- unrelated: they ask about something unrelated to this DMI (for example dental coverage, a bill or a different policy).",
         ...(texts.later ? ["- later: they say they will come back to it later, not now, or need time to find the document."] : []),
         '- ready: they say they have the document or are ready for a new link (for example "ready").',
         "Or hand the client to their agent with escalate_to_agent, and send no text yourself:",
         "- income_or_application_change: they say their income, household or anything else on their application has changed (for example a new job or different pay).",
         "- advice_or_low_confidence: they ask for tax, immigration or legal advice or what to report, or you cannot tell what they need.",
+        ...(offer
+          ? [
+              "- client_asked_for_agent: they say yes to your offer to have their agent contact them about their earlier message below. If they say no, send nothing.",
+              `<earlier_client_message untrusted="true">${offer.unrelatedMessage.text.replace(/</g, "&lt;")}</earlier_client_message>`,
+            ]
+          : []),
         "Never give advice. If the message is only thanks or an acknowledgement, send nothing and stop.",
         `To send: run check_consent for text_outreach, then ${send}`,
         withLink("why", texts.why),
         withLink("disclosure", texts.disclosure),
         ...(texts.later ? [withLink("later", texts.later)] : []),
         withLink("ready", texts.ready),
+        withLink("unrelated", texts.unrelated),
       ];
-  await runModel(event.clientId, prompt.join("\n"), deps, [...FIRST_TEXT_TOOLS, "escalate_to_agent"], [replyEscalationTool(client, message, deps)]);
+  const escalate = replyEscalationTool(client, message, deps, offer && { ...offer, dmiId: dmi.id, confirmation: texts.agentWillContact });
+  // After the offer, a link the Client asks for is their live one, if it still opens.
+  const linkTool = offer ? [reusingPortalLinkTool(event.clientId, deps)] : [];
+  await runModel(event.clientId, prompt.join("\n"), deps, [...FIRST_TEXT_TOOLS, "escalate_to_agent"], [escalate, ...linkTool]);
 }
 
 /** The tools as the model sees them, bound to one Client so it cannot act for anyone else. */
@@ -386,4 +456,20 @@ function modelTools(clientId: ClientId, { store, now, model }: RunDeps) {
       },
     }),
   ];
+}
+
+/**
+ * The offer of the Agent the Client can still say yes to: the Assistant's last
+ * text was the unrelated-topic reply, and no Escalation has taken it up since.
+ * Carries the Client's message that the reply answered.
+ */
+function pendingAgentOffer(thread: Message[], message: Message, agentFirstName: string, escalations: Escalation[]): { unrelatedMessage: Message } | null {
+  const earlier = thread.slice(0, thread.indexOf(message));
+  const lastAssistant = earlier.findLast((m) => m.sender === "assistant");
+  if (!lastAssistant?.text.endsWith(unrelatedText(agentFirstName))) return null;
+  const takenUp = escalations.some(
+    (e) => e.clientId === message.clientId && e.trigger === "client_asked_for_agent" && Date.parse(e.raisedAt) >= Date.parse(lastAssistant.sentAt),
+  );
+  const unrelatedMessage = earlier.slice(0, earlier.indexOf(lastAssistant)).findLast((m) => m.sender === "client");
+  return takenUp || !unrelatedMessage ? null : { unrelatedMessage };
 }
