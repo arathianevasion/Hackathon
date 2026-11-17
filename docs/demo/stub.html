@@ -1,0 +1,89 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  html,body{margin:0;height:100%}
+  body{font-family:"Helvetica Neue",Arial,sans-serif;color:#1d1d1f}
+  /* scenes */
+  body.flat{background:#fff}
+  body.photo,body.cropped{background:
+      radial-gradient(ellipse at 30% 20%, rgba(255,255,255,.18), transparent 60%),
+      repeating-linear-gradient(90deg,#8a6a4c 0 3px,#86664a 3px 7px,#8d6d50 7px 12px),
+      #87684b}
+  .scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  body.photo .paper{transform:perspective(1800px) rotateX(7deg) rotateZ(-2deg) scale(1.08);
+      box-shadow:0 30px 50px rgba(0,0,0,.45),0 4px 10px rgba(0,0,0,.3)}
+  body.photo .paper::after,body.cropped .paper::after{content:"";position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(115deg,rgba(255,255,255,.0) 35%,rgba(255,255,255,.22) 50%,rgba(0,0,0,.06) 80%),
+                 radial-gradient(ellipse at 85% 95%,rgba(0,0,0,.18),transparent 55%)}
+  /* cropped: the camera framed too low, so the header (employer, name, pay period) is out of the shot */
+  body.cropped .scene{display:block}
+  body.cropped .paper{position:absolute;left:30px;top:-318px;transform-origin:top left;transform:rotate(1.5deg) scale(1.1);box-shadow:0 30px 50px rgba(0,0,0,.45)}
+  .paper{position:relative;width:850px;background:#fbfaf6;padding:44px 52px 40px;box-sizing:border-box}
+  body.flat .paper{box-shadow:none}
+  .wm{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  .wm span{transform:rotate(-24deg);font:800 120px/1 Arial,sans-serif;letter-spacing:14px;color:rgba(200,30,30,.13);border:10px solid rgba(200,30,30,.13);padding:6px 28px}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #23415f;padding-bottom:14px}
+  .co{font-weight:700;font-size:24px;color:#23415f}
+  .co small{display:block;font-weight:400;font-size:13px;color:#555;margin-top:4px;line-height:1.4}
+  .doc{text-align:right;font-size:13px;color:#555}
+  .doc b{display:block;font-size:20px;color:#23415f;letter-spacing:1px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 40px;margin:20px 0 22px;font-size:14px}
+  .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#777}
+  .val{font-size:15px;margin-top:2px}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:18px}
+  th{background:#e7edf3;color:#23415f;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.5px;padding:7px 8px}
+  td{padding:7px 8px;border-bottom:1px solid #e3e3e3}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+  .net{display:flex;justify-content:flex-end;gap:40px;background:#23415f;color:#fff;padding:12px 16px;font-size:17px;font-weight:700}
+  .foot{margin-top:16px;font-size:11px;color:#888;display:flex;justify-content:space-between}
+</style></head>
+<body>
+<div class="scene"><div class="paper">
+  <div class="wm"><span>SPECIMEN</span></div>
+  <div class="top">
+    <div class="co">Harborline Bakery Supply (Demo)<small>4400 Example Industrial Pkwy · Fairview, ST 00000<br>Employer ID: 00-0000000 (sample)</small></div>
+    <div class="doc"><b>PAY STUB</b>Check no. 104417<br>SPECIMEN · not a real document</div>
+  </div>
+  <div class="grid">
+    <div><div class="lbl">Employee</div><div class="val" id="emp"></div></div>
+    <div><div class="lbl">Employee ID</div><div class="val" id="eid"></div></div>
+    <div><div class="lbl">Address</div><div class="val" id="addr"></div></div>
+    <div><div class="lbl">SSN</div><div class="val" id="ssn"></div></div>
+    <div><div class="lbl">Pay period</div><div class="val" id="period"></div></div>
+    <div><div class="lbl">Pay date · Frequency</div><div class="val" id="paydate"></div></div>
+  </div>
+  <table>
+    <tr><th>Earnings</th><th class="n">Rate</th><th class="n">Hours</th><th class="n">This period</th><th class="n">Year to date</th></tr>
+    <tbody id="earn"></tbody>
+  </table>
+  <table>
+    <tr><th>Deductions</th><th class="n"></th><th class="n"></th><th class="n">This period</th><th class="n">Year to date</th></tr>
+    <tbody id="ded"></tbody>
+  </table>
+  <div class="net"><span>NET PAY</span><span id="net"></span></div>
+  <div class="foot"><span>Direct deposit · Account ending 0000 (sample)</span><span>Questions? payroll@example.com</span></div>
+</div></div>
+<script>
+const P = {
+  rosa:   {emp:"Rosa Delgado-Finch", eid:"E-20417", addr:"212 Larkspur Ln, Fairview, ST 00000", ssn:"XXX-XX-0417",
+           period:"10/26/2026 – 11/08/2026", paydate:"11/13/2026 · Biweekly", rate:19.50, hours:80, periods:23},
+  marcus: {emp:"Marcus Whitlow", eid:"E-31188", addr:"87 Juniper Ct, Fairview, ST 00000", ssn:"XXX-XX-1188",
+           period:"10/26/2026 – 11/08/2026", paydate:"11/13/2026 · Biweekly", rate:15.25, hours:80, periods:4},
+};
+const q = new URLSearchParams(location.search);
+const p = P[q.get("who") || "rosa"];
+document.body.className = q.get("scene") || "flat";
+const f = n => n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const gross = Math.round(p.rate*p.hours*100)/100;
+const ded = [["Federal income tax", .063],["Social Security", .062],["Medicare", .0145],["State income tax", .0264]]
+  .map(([k,r]) => [k, Math.round(gross*r*100)/100]);
+const totalDed = ded.reduce((s,[,v]) => s+v, 0);
+for (const k of ["emp","eid","addr","ssn","period","paydate"]) document.getElementById(k).textContent = p[k];
+document.getElementById("earn").innerHTML =
+  `<tr><td>Regular</td><td class="n">${f(p.rate)}</td><td class="n">${f(p.hours)}</td><td class="n">${f(gross)}</td><td class="n">${f(gross*p.periods)}</td></tr>
+   <tr><td><b>Gross pay</b></td><td></td><td></td><td class="n"><b>${f(gross)}</b></td><td class="n"><b>${f(gross*p.periods)}</b></td></tr>`;
+document.getElementById("ded").innerHTML = ded.map(([k,v]) =>
+  `<tr><td>${k}</td><td></td><td></td><td class="n">${f(v)}</td><td class="n">${f(v*p.periods)}</td></tr>`).join("");
+document.getElementById("net").textContent = "$" + f(gross - totalDed);
+</script>
+</body></html>
