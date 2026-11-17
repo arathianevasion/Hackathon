@@ -86,9 +86,9 @@ describe("the queue", () => {
     for (const e of store.list("escalations")) store.update("escalations", { ...e, status: "handled", handledAt: e.raisedAt });
     await escalateMarcus();
     const html = await view();
-    const firstRow = html.split('role="row"')[2];
+    const firstRow = html.split('class="row')[1];
     expect(firstRow).toContain("Marcus Whitlow");
-    expect(firstRow).toContain("Escalation");
+    expect(firstRow).toContain("Needs you");
   });
 });
 
@@ -110,21 +110,23 @@ describe("the Agent in the Thread", () => {
     await sendAgentTextAction(form);
   };
 
-  it("shows a message box under the Thread, and 'Reply in Thread' on the handoff card jumps to it", async () => {
+  it("shows a message box under the Thread, and 'Text Marcus' on the handoff card jumps to it", async () => {
     await escalateMarcus();
     const html = await view(MARCUS);
     expect(html).toContain('name="text"');
     expect(html).toContain('id="message-box"');
     expect(html).toContain('href="#message-box"');
-    expect(html).toContain("Reply in Thread");
+    expect(html).toContain("Text Marcus");
   });
 
   it("sends the text with the prefix, then shows the banner and the queue chip", async () => {
     await send(MARCUS, "Call me when you can.");
     const html = await view(MARCUS);
     expect(html).toContain("Andrew here: Call me when you can.");
-    expect(html).toContain("The Assistant is holding its replies and nudges for this Client");
-    expect(html).toContain("Hand back to the Assistant");
+    expect(html).toContain("AI Client Advocate");
+    expect(html).not.toMatch(/>Assistant</);
+    expect(html).toContain("The AI Client Advocate is holding its replies and nudges for this Client");
+    expect(html).toContain("Hand back to the AI Client Advocate");
     expect(html).toContain("You&#x27;re in the Thread");
   });
 
@@ -142,7 +144,7 @@ describe("the Agent in the Thread", () => {
     form.set("clientId", MARCUS);
     await handBack(form);
     const html = await view(MARCUS);
-    expect(html).not.toContain("Hand back to the Assistant");
+    expect(html).not.toContain("Hand back to the AI Client Advocate");
     expect(html).not.toContain("You&#x27;re in the Thread");
   });
 
