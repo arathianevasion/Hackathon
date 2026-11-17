@@ -2,6 +2,7 @@ import type { ClientId, Dmi, DmiId, DmiType, Escalation, IsoDateTime, Message } 
 import { assistantTextsAbout, dueDateLabel } from "../assistant/firstText";
 import type { Tools } from "../assistant/tools";
 import { finishMarketplaceReviews } from "../marketplace/marketplace";
+import { PortalLinkLimitError } from "../portal/portalLink";
 import type { Store } from "../store/store";
 import type { Clock } from "./clock";
 import { cadenceFor, daysLeftOn, inQuietHours, QUIET_HOURS, type QuietHours } from "./schedule";
@@ -45,6 +46,38 @@ function lastContact(thread: Message[], escalations: Escalation[]): number | nul
   return Math.max(Date.parse(base.sentAt), ...handed);
 }
 
+/** The DMI the Assistant is working for a Client, their last contact and the cadence it puts them on. */
+function scheduleFor(store: Store, clientId: ClientId, escalations: Escalation[]) {
+  const dmi = store
+    .list("dmis")
+    .filter((d) => d.clientId === clientId && d.status === "open" && assistantTextsAbout(d.type))
+    .sort((a, b) => a.deadline.localeCompare(b.deadline))[0];
+  const contact = dmi && lastContact(store.list("messages").filter((m) => m.clientId === clientId), escalations);
+  if (!dmi || contact === null || contact === undefined) return null;
+  const cadence = cadenceFor(daysLeftOn(new Date(contact), dmi.deadline));
+  const nudged = store.list("actionLog").some((l) => l.clientId === clientId && l.result === NUDGE_LOGGED && Date.parse(l.at) > contact);
+  return { dmi, contact, cadence, nudged };
+}
+
+/**
+ * When the Client's scheduled nudge will go out: the cadence's nudge day after
+ * their last contact, held to the texting window. Null when none is scheduled
+ * (no open DMI, opted out, an Escalation open, or the nudge already sent).
+ * Anything that tells the Client when to expect the check-in reads it here.
+ */
+export function nextNudgeAt(store: Store, clientId: ClientId, quietHours: QuietHours = QUIET_HOURS): Date | null {
+  const client = store.list("clients").find((c) => c.id === clientId);
+  const escalations = store.list("escalations").filter((e) => e.clientId === clientId);
+  if (!client || client.optedOutAt !== null || escalations.some((e) => e.status === "open")) return null;
+  const schedule = scheduleFor(store, clientId, escalations);
+  if (!schedule || schedule.nudged) return null;
+  let at = new Date(schedule.contact + schedule.cadence.nudgeAfterDays * DAY_MS);
+  // Held to the moment the window opens: the first whole hour it is open.
+  if (inQuietHours(at, quietHours)) at = new Date(Math.floor(at.getTime() / HOUR_MS) * HOUR_MS);
+  while (inQuietHours(at, quietHours)) at = new Date(at.getTime() + HOUR_MS);
+  return at;
+}
+
 /**
  * Fires every cadence step that is due at the clock's now, and returns them.
  * Timing is arithmetic on the last contact (spec, "Nudge schedule"); the model
@@ -57,17 +90,11 @@ export async function runDueCadence({ store, clock, tools, quietHours = QUIET_HO
     if (client.optedOutAt !== null) continue;
     const escalations = store.list("escalations").filter((e) => e.clientId === client.id);
     if (escalations.some((e) => e.status === "open")) continue;
-    const dmi = store
-      .list("dmis")
-      .filter((d) => d.clientId === client.id && d.status === "open" && assistantTextsAbout(d.type))
-      .sort((a, b) => a.deadline.localeCompare(b.deadline))[0];
-    const contact = dmi && lastContact(store.list("messages").filter((m) => m.clientId === client.id), escalations);
-    if (!dmi || contact === null || contact === undefined) continue;
+    const schedule = scheduleFor(store, client.id, escalations);
+    if (!schedule) continue;
+    const { dmi, contact } = schedule;
 
-    const cadence = cadenceFor(daysLeftOn(new Date(contact), dmi.deadline));
-    const nudged = store
-      .list("actionLog")
-      .some((l) => l.clientId === client.id && l.result === NUDGE_LOGGED && Date.parse(l.at) > contact);
+    const { cadence, nudged } = schedule;
     if (!nudged && now.getTime() >= contact + cadence.nudgeAfterDays * DAY_MS && !inQuietHours(now, quietHours)) {
       if (await nudge(store, tools, now, client.firstName, dmi)) fired.push({ clientId: client.id, dmiId: dmi.id, step: "nudge" });
     }
@@ -80,7 +107,14 @@ export async function runDueCadence({ store, clock, tools, quietHours = QUIET_HO
 }
 
 async function nudge(store: Store, tools: CadenceDeps["tools"], now: Date, firstName: string, dmi: Dmi): Promise<boolean> {
-  const { url } = await tools.create_portal_link({ clientId: dmi.clientId, dmiId: dmi.id });
+  let url: string;
+  try {
+    ({ url } = await tools.create_portal_link({ clientId: dmi.clientId, dmiId: dmi.id }));
+  } catch (error) {
+    // At the cap the Agent has been notified; the nudge waits rather than stopping the run.
+    if (error instanceof PortalLinkLimitError) return false;
+    throw error;
+  }
   const sent = await tools.send_text({ clientId: dmi.clientId, text: nudgeText(firstName, dmi.type, url) });
   if (!sent.sent) return false;
   store.add("actionLog", {

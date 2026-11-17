@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { UploadPageState } from "../src/portal/uploadPage";
-import { uploadDocument } from "./actions";
+import { comeBackLaterAction, uploadDocument } from "./actions";
 
 /** The SPECIMEN pay stub example from variant D, with the parts a photo must show highlighted. */
 function SpecimenStub() {
@@ -53,6 +53,19 @@ export function UploadPage({ token, state }: { token: string; state: UploadPageS
       </div>
     </>
   );
+
+  if (state.kind === "later") {
+    return (
+      <div className="pg">
+        {head}
+        <div className="status info">
+          <span className="t">No problem. Come back any time before {state.due}</span>
+          <span>When you have it, reply &quot;ready&quot; to our text and we&apos;ll send you a new link. If we don&apos;t hear from you, we&apos;ll check in.</span>
+        </div>
+        <p className="cap">For your security, this link is now closed. Nothing was sent to the Marketplace.</p>
+      </div>
+    );
+  }
 
   if (state.kind === "submitted") {
     return (
@@ -135,6 +148,14 @@ export function UploadPage({ token, state }: { token: string; state: UploadPageS
           </>
         )}
       </form>
+      {!sending && (
+        <form action={comeBackLaterAction}>
+          <input type="hidden" name="token" value={token} />
+          <button type="submit" className="button later">
+            I&apos;ll come back later
+          </button>
+        </form>
+      )}
     </div>
   );
 }

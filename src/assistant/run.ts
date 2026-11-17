@@ -8,6 +8,8 @@ import type { Store } from "../store/store";
 import { assistantTextsAbout, firstText, PORTAL_LINK_SLOT } from "./firstText";
 import { QUIET_DAYS_FOR_DISCLOSURE, quietDays, replyTexts, SSN_MASK } from "./replies";
 import { createTools } from "./tools";
+import { nextNudgeAt } from "../cadence/engine";
+import { localDate, QUIET_HOURS } from "../cadence/schedule";
 
 /** The model the spec names for the Assistant. */
 export const ASSISTANT_MODEL = "claude-sonnet-5-5";
@@ -175,7 +177,14 @@ async function answerClient(event: Extract<DomainEvent, { name: "client.message"
 
   const before = thread.filter((m) => m !== message).at(-1);
   const quiet = before !== undefined && quietDays(before.sentAt, now()) >= QUIET_DAYS_FOR_DISCLOSURE;
-  const texts = replyTexts({ agentFirstName: agent.firstName, dmiType: dmi.type, deadline: dmi.deadline, quiet });
+  const nudgeAt = nextNudgeAt(store, event.clientId);
+  const texts = replyTexts({
+    agentFirstName: agent.firstName,
+    dmiType: dmi.type,
+    deadline: dmi.deadline,
+    quiet,
+    checkInOn: nudgeAt && localDate(nudgeAt, QUIET_HOURS),
+  });
   const withLink = (id: string, text: string) => `<reply id="${id}">${text}</reply>`;
   const send = `send_text with exactly the text in the reply, with ${PORTAL_LINK_SLOT} (if present) replaced by the url of a Portal link from create_portal_link for this dmi_id. Change nothing else.`;
 
@@ -193,10 +202,14 @@ async function answerClient(event: Extract<DomainEvent, { name: "client.message"
         "Pick the one reply that fits and send it:",
         "- why: they ask why they are being asked or why the Marketplace needs this.",
         "- disclosure: they ask whether you are an AI, a bot or a person.",
-        "If neither fits, send nothing and stop.",
+        ...(texts.later ? ["- later: they say they will come back to it later, not now, or need time to find the document."] : []),
+        '- ready: they say they have the document or are ready for a new link (for example "ready").',
+        "If none fits, send nothing and stop.",
         `To send: run check_consent for text_outreach, then ${send}`,
         withLink("why", texts.why),
         withLink("disclosure", texts.disclosure),
+        ...(texts.later ? [withLink("later", texts.later)] : []),
+        withLink("ready", texts.ready),
       ];
   await runModel(event.clientId, prompt.join("\n"), deps);
 }

@@ -78,3 +78,32 @@ describe("Agent view phone parameter", () => {
     expect(off).toContain("Action log");
   });
 });
+
+describe("the upload page's way out", () => {
+  const open = async () => {
+    const link = issuePortalLink(store, ROSA, "dmi-01", NOW);
+    const token = link.url.slice(PORTAL_LINK_BASE.length);
+    const props = { params: Promise.resolve({ token }), searchParams: Promise.resolve({}) };
+    return { token, props };
+  };
+
+  it("offers \"I'll come back later\" on the open page", async () => {
+    const { props } = await open();
+    expect(await render(UploadRoute(props))).toContain("I&#x27;ll come back later");
+  });
+
+  it("shows the later page, with no upload buttons, once the Client has tapped it", async () => {
+    const { token, props } = await open();
+    await render(UploadRoute(props));
+    const { comeBackLaterAction } = await import("./actions");
+    const form = new FormData();
+    form.set("token", token);
+    await comeBackLaterAction(form);
+    const html = await render(UploadRoute(props));
+    expect(html).toContain("No problem. Come back any time before");
+    expect(html).toContain("When you have it, reply &quot;ready&quot; to our text and we&#x27;ll send you a new link. If we don&#x27;t hear from you, we&#x27;ll check in.");
+    expect(html).toContain("For your security, this link is now closed. Nothing was sent to the Marketplace.");
+    expect(html).not.toContain("Take a photo");
+    expect(html).not.toContain("come back later</button>");
+  });
+});

@@ -17,6 +17,7 @@ const NOTIFICATION_LABEL: Record<NotificationEvent, string> = {
   consent_rescinded: "Consent rescinded",
   documents_submitted: "Documents submitted to the Marketplace",
   dmi_resolved: "DMI resolved",
+  portal_link_limit: "3 Portal links sent in 24 hours",
 };
 
 const DMI_LABEL: Record<DmiType, string> = {
