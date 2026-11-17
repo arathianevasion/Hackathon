@@ -1,12 +1,13 @@
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaToolRunnerParams } from "@anthropic-ai/sdk/resources/beta/messages";
 import { z } from "zod";
-import type { ClientId, DomainEvent, ToolName } from "../contract";
+import type { Client, ClientId, Dmi, DomainEvent, EscalationTrigger, Message, ToolName } from "../contract";
 import { guidanceFor, guidanceText } from "../documents/guidance";
 import { extractFields, FALLBACK_BETA, type ExtractionClient } from "../documents/extract";
 import type { Store } from "../store/store";
 import { assistantTextsAbout, firstText, PORTAL_LINK_SLOT } from "./firstText";
-import { QUIET_DAYS_FOR_DISCLOSURE, quietDays, replyTexts, SSN_MASK } from "./replies";
+import { isPaused } from "./escalations";
+import { applicationChangeText, QUIET_DAYS_FOR_DISCLOSURE, quietDays, replyTexts, SSN_MASK } from "./replies";
 import { createTools } from "./tools";
 import { nextNudgeAt } from "../cadence/engine";
 import { localDate, QUIET_HOURS } from "../cadence/schedule";
@@ -47,16 +48,28 @@ export function confirmationText(documentType: string): string {
  * tools bound to that Client.
  */
 export async function runAssistant(event: DomainEvent, deps: RunDeps): Promise<void> {
+  if (event.name === "dmi.detected") return openDmi(event, deps);
+  // escalate_to_agent pauses the Assistant for this Client until the Agent marks the Escalation handled.
+  if (isPaused(deps.store, event.clientId)) return;
   if (event.name === "client.message") return answerClient(event, deps);
   if (event.name === "document.uploaded") return checkUpload(event, deps);
-  if (event.name !== "dmi.detected") throw new Error(`The Assistant does not handle ${event.name} yet`);
+  throw new Error(`The Assistant does not handle ${event.name} yet`);
+}
 
+/**
+ * A DMI was opened. Citizenship and immigration DMIs go straight to the Agent,
+ * in code and with no text to the Client; the rest get the first text, unless
+ * the Assistant is paused for this Client.
+ */
+async function openDmi(event: Extract<DomainEvent, { name: "dmi.detected" }>, deps: RunDeps): Promise<void> {
   const { store } = deps;
   const dmi = store.list("dmis").find((d) => d.id === event.dmiId && d.clientId === event.clientId);
   const client = store.list("clients").find((c) => c.id === event.clientId);
   const agent = store.agent();
   if (!dmi || !client || !agent) throw new Error(`No DMI ${event.dmiId} for Client ${event.clientId}`);
-  if (dmi.status !== "open" || !assistantTextsAbout(dmi.type)) return;
+  if (dmi.status !== "open") return;
+  if (!assistantTextsAbout(dmi.type)) return escalateAtOpen(dmi, client, deps);
+  if (isPaused(store, client.id)) return;
 
   const text = firstText({ clientFirstName: client.firstName, agentFirstName: agent.firstName, dmiType: dmi.type, deadline: dmi.deadline });
   const prompt = [
@@ -108,13 +121,7 @@ async function followUpInsufficient(event: Extract<DomainEvent, { name: "documen
   if (doc?.precheck.result !== "insufficient") return;
   const guidance = guidanceFor(doc.precheck.reasons);
   if (!guidance) return;
-  const tools = createTools({
-    store,
-    now,
-    extract: async () => {
-      throw new Error("Following up reads nothing");
-    },
-  });
+  const tools = toolsFor({ store, now });
   const insufficient = store
     .list("documents")
     .filter((d) => d.dmiId === event.dmiId && d.precheck.result === "insufficient" && guidanceFor(d.precheck.reasons) !== null);
@@ -136,10 +143,82 @@ async function followUpInsufficient(event: Extract<DomainEvent, { name: "documen
   });
 }
 
+/** A citizenship or immigration DMI always goes to the Agent; the Client hears nothing from the Assistant. */
+async function escalateAtOpen(dmi: Dmi, client: Client, { store, now }: RunDeps): Promise<void> {
+  const already = store
+    .list("escalations")
+    .some((e) => e.clientId === client.id && e.status === "open" && e.trigger === "citizenship_or_immigration_dmi");
+  if (already) return;
+  const kind = dmi.type === "citizenship" ? "Citizenship" : "Immigration";
+  const proof = dmi.type === "citizenship" ? "proof of citizenship" : "proof of immigration status";
+  await toolsFor({ store, now }).escalate_to_agent({
+    clientId: client.id,
+    trigger: "citizenship_or_immigration_dmi",
+    summary: `${kind} DMIs always go to you. The Assistant has not contacted ${client.firstName}.`,
+    clientWords: null,
+    suggestedNextStep: `Contact ${client.firstName} yourself about ${proof}.`,
+  });
+}
+
+/** The tools for steps that run in code, with no model and so nothing to extract. */
+function toolsFor({ store, now }: Pick<RunDeps, "store" | "now">) {
+  return createTools({ store, now, extract: async () => Promise.reject(new Error("This step reads no document")) });
+}
+
+/** The triggers the model may raise from a Client's reply, with the next step the Agent is offered for each. */
+const REPLY_TRIGGERS = {
+  income_or_application_change: (firstName: string) =>
+    `Call ${firstName} to review the change and update the projected income on the application together.`,
+  advice_or_low_confidence: (firstName: string) =>
+    `Call ${firstName} about their question. The Assistant gave no answer.`,
+} satisfies Partial<Record<EscalationTrigger, (firstName: string) => string>>;
+
+/**
+ * escalate_to_agent as the model sees it while answering a reply: it picks the
+ * trigger and writes the summary for the Agent, and code supplies the rest. The
+ * Client's own words are their message as stored, and what the Client is told is
+ * fixed wording, so the model cannot give advice. Only an application change gets
+ * a text; it goes out before the Escalation pauses the Assistant.
+ */
+function replyEscalationTool(client: Client, message: Message, deps: RunDeps) {
+  const tools = toolsFor(deps);
+  return betaZodTool({
+    name: "escalate_to_agent",
+    description:
+      "Hands this client to their agent, who must act. You are paused for this client afterwards. Any text the client needs is sent for you; do not send one yourself.",
+    inputSchema: z.object({
+      trigger: z.enum(["income_or_application_change", "advice_or_low_confidence"]),
+      summary: z.string().min(1).max(400).describe("One or two sentences for the agent on what the client said. No advice."),
+    }),
+    run: async ({ trigger, summary }) => {
+      const agent = deps.store.agent();
+      if (!agent) throw new Error("No Agent");
+      if (trigger === "income_or_application_change") {
+        await tools.send_text({ clientId: client.id, text: applicationChangeText(agent.firstName) });
+      }
+      return JSON.stringify(
+        await tools.escalate_to_agent({
+          clientId: client.id,
+          trigger,
+          summary,
+          clientWords: message.text,
+          suggestedNextStep: REPLY_TRIGGERS[trigger](client.firstName),
+        }),
+      );
+    },
+  });
+}
+
 const FIRST_TEXT_TOOLS: ToolName[] = ["check_consent", "create_portal_link", "send_text"];
 
-async function runModel(clientId: ClientId, prompt: string, deps: RunDeps, toolNames = FIRST_TEXT_TOOLS): Promise<void> {
-  const available = modelTools(clientId, deps);
+async function runModel(
+  clientId: ClientId,
+  prompt: string,
+  deps: RunDeps,
+  toolNames = FIRST_TEXT_TOOLS,
+  extraTools: RunnerParams["tools"] = [],
+): Promise<void> {
+  const available: RunnerParams["tools"] = [...modelTools(clientId, deps), ...extraTools];
   await deps.model.beta.messages.toolRunner({
     model: ASSISTANT_MODEL,
     max_tokens: 1024,
@@ -149,7 +228,7 @@ async function runModel(clientId: ClientId, prompt: string, deps: RunDeps, toolN
     betas: [FALLBACK_BETA],
     system: SYSTEM,
     tools: toolNames.map((name) => {
-      const tool = available.find((t) => t.name === name);
+      const tool = available.find((t) => "name" in t && t.name === name);
       if (!tool) throw new Error(`No model tool ${name}`);
       return tool;
     }),
@@ -204,14 +283,17 @@ async function answerClient(event: Extract<DomainEvent, { name: "client.message"
         "- disclosure: they ask whether you are an AI, a bot or a person.",
         ...(texts.later ? ["- later: they say they will come back to it later, not now, or need time to find the document."] : []),
         '- ready: they say they have the document or are ready for a new link (for example "ready").',
-        "If none fits, send nothing and stop.",
+        "Or hand the client to their agent with escalate_to_agent, and send no text yourself:",
+        "- income_or_application_change: they say their income, household or anything else on their application has changed (for example a new job or different pay).",
+        "- advice_or_low_confidence: they ask for tax, immigration or legal advice or what to report, or you cannot tell what they need.",
+        "Never give advice. If the message is only thanks or an acknowledgement, send nothing and stop.",
         `To send: run check_consent for text_outreach, then ${send}`,
         withLink("why", texts.why),
         withLink("disclosure", texts.disclosure),
         ...(texts.later ? [withLink("later", texts.later)] : []),
         withLink("ready", texts.ready),
       ];
-  await runModel(event.clientId, prompt.join("\n"), deps);
+  await runModel(event.clientId, prompt.join("\n"), deps, [...FIRST_TEXT_TOOLS, "escalate_to_agent"], [replyEscalationTool(client, message, deps)]);
 }
 
 /** The tools as the model sees them, bound to one Client so it cannot act for anyone else. */
