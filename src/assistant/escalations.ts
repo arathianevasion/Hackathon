@@ -15,7 +15,7 @@ export class AssistantPausedError extends Error {
  * back. Whether the Agent is in the Thread is read back from the latest of the two.
  */
 export const AGENT_TEXTED_LOGGED = "Agent text sent in the Thread";
-export const HANDED_BACK_LOGGED = "Agent handed back to the Assistant";
+export const HANDED_BACK_LOGGED = "Agent handed back to the AI Client Advocate";
 
 /** Whether the Agent is in a Client's Thread: they texted, and have not handed back since. */
 export function agentInThread(store: Store, clientId: ClientId): boolean {

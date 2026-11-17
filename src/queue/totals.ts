@@ -38,3 +38,16 @@ export function windowUsedPercent(noticeDate: IsoDate, deadline: IsoDate, today:
   if (total <= 0) return 100;
   return Math.min(100, Math.max(0, Math.round((daysBetween(noticeDate, today) / total) * 100)));
 }
+
+/** Days left at or under which the deadline is close: the window bar turns red. */
+const CLOSE_DAYS = 7;
+
+/** How a window bar reads: red when the deadline is close, amber when the DMI is at risk, green once resolved. */
+export type WindowTone = "soon" | "risk" | "done" | "normal";
+
+/** A queue row's 90-day window bar: how much of the window is used, and its colour. */
+export function windowBar(row: QueueRow, today: IsoDate): { usedPercent: number; tone: WindowTone } {
+  if (row.daysLeft === null) return { usedPercent: 100, tone: "done" };
+  const tone: WindowTone = row.daysLeft <= CLOSE_DAYS ? "soon" : atRisk(row) ? "risk" : "normal";
+  return { usedPercent: windowUsedPercent(row.noticeDate, row.deadline, today), tone };
+}

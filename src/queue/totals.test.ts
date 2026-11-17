@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { QueueRow } from "./rank";
-import { atRisk, filterQueue, queueTotals, windowUsedPercent } from "./totals";
+import { atRisk, filterQueue, queueTotals, windowBar, windowUsedPercent } from "./totals";
 
 function row(over: Partial<QueueRow>): QueueRow {
   return {
@@ -58,5 +58,23 @@ describe("windowUsedPercent", () => {
   it("is clamped to 0 to 100", () => {
     expect(windowUsedPercent("2026-09-01", "2026-11-30", "2026-08-01")).toBe(0);
     expect(windowUsedPercent("2026-09-01", "2026-11-30", "2026-12-25")).toBe(100);
+  });
+});
+
+describe("windowBar", () => {
+  const today = "2026-10-16";
+  it("is the share of the window used, full once resolved", () => {
+    expect(windowBar(row({ daysLeft: 45 }), today).usedPercent).toBe(50);
+    expect(windowBar(row({ dmiStatus: "resolved", daysLeft: null }), today).usedPercent).toBe(100);
+  });
+  it("is red when the deadline is a week or less away, amber when the DMI is at risk, green when resolved", () => {
+    expect(windowBar(row({ daysLeft: 7 }), today).tone).toBe("soon");
+    expect(windowBar(row({ daysLeft: -1 }), today).tone).toBe("soon");
+    expect(windowBar(row({ dmiStatus: "documents_submitted", daysLeft: 3 }), today).tone).toBe("soon");
+    expect(windowBar(row({ daysLeft: 8 }), today).tone).toBe("risk");
+    expect(windowBar(row({ daysLeft: 14 }), today).tone).toBe("risk");
+    expect(windowBar(row({ daysLeft: 15 }), today).tone).toBe("normal");
+    expect(windowBar(row({ dmiStatus: "documents_submitted", daysLeft: 10 }), today).tone).toBe("normal");
+    expect(windowBar(row({ dmiStatus: "resolved", daysLeft: null }), today).tone).toBe("done");
   });
 });

@@ -27,7 +27,7 @@ export function firstText(input: { clientFirstName: string; agentFirstName: stri
   const needs = NEEDS[input.dmiType];
   if (!needs) throw new Error(`The Assistant does not text about ${input.dmiType} DMIs`);
   return (
-    `Hi ${input.clientFirstName}, I'm the AI assistant for your insurance agent, ${input.agentFirstName}. ` +
+    `Hi ${input.clientFirstName}, I'm your AI Client Advocate, working with your insurance agent, ${input.agentFirstName}. ` +
     `The Marketplace needs ${needs} by ${dueDateLabel(input.deadline)}. Everything you need is here: ${PORTAL_LINK_SLOT}\n` +
     `Reply with any questions. Reply STOP to opt out.`
   );

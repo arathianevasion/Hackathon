@@ -226,9 +226,9 @@ export function buildSeed(runDate: Date): SeedData {
         escalate(
           clientId,
           "silence",
-          "Initial text on day 0 and a nudge on day 3, no reply. The Assistant has paused contact until you decide.",
+          "Initial text on day 0 and a nudge on day 3, no reply. The AI Client Advocate has paused contact until you decide.",
           null,
-          "Call the Client, or tell the Assistant to keep trying before the Marketplace warnings.",
+          "Call the Client, or tell the AI Client Advocate to keep trying before the Marketplace warnings.",
           daysAgo(0),
         );
         break;
@@ -262,7 +262,7 @@ export function buildSeed(runDate: Date): SeedData {
         escalate(
           clientId,
           "citizenship_or_immigration_dmi",
-          "Citizenship DMIs always go to you. The Assistant has not contacted the Client.",
+          "Citizenship DMIs always go to you. The AI Client Advocate has not contacted the Client.",
           null,
           "Contact the Client yourself about proof of citizenship.",
           daysAgo(0),
