@@ -205,7 +205,7 @@ merge_gate_skip_paths: []
 # Examples:
 #   worktree_setup: npm ci --prefer-offline
 #   worktree_setup: ln -s "$ARTISAN_MAIN/node_modules" node_modules
-worktree_setup:
+worktree_setup: npm ci --prefer-offline
 
 # The longest worktree_setup may run, in seconds (#181). A command still
 # running then (a hung npm ci) has its whole process group killed, and the
