@@ -10,7 +10,7 @@ const PORTAL_LINK = new RegExp(`(${PORTAL_LINK_BASE.replace(/[.*+?^${}()|[\]\\/]
 /** A text, with any Portal link in it tappable: it opens in the in-phone browser. */
 function Bubble({ clientId, message, standalone }: { clientId: ClientId; message: Message; standalone: boolean }) {
   return (
-    <p className={message.sender === "client" ? "bubble mine" : "bubble"}>
+    <div className={message.sender === "client" ? "bubble mine" : "bubble"}>
       {message.text.split(PORTAL_LINK).map((part, i) =>
         i % 2 === 1 && standalone ? (
           // On a real phone the link is a plain link to the upload page's URL on this server.
@@ -27,7 +27,7 @@ function Bubble({ clientId, message, standalone }: { clientId: ClientId; message
           part
         ),
       )}
-    </p>
+    </div>
   );
 }
 
