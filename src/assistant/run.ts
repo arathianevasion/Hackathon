@@ -1,7 +1,7 @@
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaToolRunnerParams } from "@anthropic-ai/sdk/resources/beta/messages";
 import { z } from "zod";
-import type { Client, ClientId, Dmi, DomainEvent, EscalationTrigger, Message, ToolName } from "../contract";
+import type { Client, ClientId, DmiType, DomainEvent, EscalationTrigger, Message, ToolName } from "../contract";
 import { guidanceFor, guidanceText } from "../documents/guidance";
 import { extractFields, FALLBACK_BETA, type ExtractionClient } from "../documents/extract";
 import type { Store } from "../store/store";
@@ -68,8 +68,9 @@ async function openDmi(event: Extract<DomainEvent, { name: "dmi.detected" }>, de
   const agent = store.agent();
   if (!dmi || !client || !agent) throw new Error(`No DMI ${event.dmiId} for Client ${event.clientId}`);
   if (dmi.status !== "open") return;
-  if (!assistantTextsAbout(dmi.type)) return escalateAtOpen(dmi, client, deps);
-  if (isPaused(store, client.id)) return;
+  const handedOver = HANDED_TO_AGENT[dmi.type];
+  if (handedOver) return escalateAtOpen(handedOver, client, deps);
+  if (isPaused(store, client.id) || !assistantTextsAbout(dmi.type)) return;
 
   const text = firstText({ clientFirstName: client.firstName, agentFirstName: agent.firstName, dmiType: dmi.type, deadline: dmi.deadline });
   const prompt = [
@@ -143,14 +144,18 @@ async function followUpInsufficient(event: Extract<DomainEvent, { name: "documen
   });
 }
 
+/** The DMI types that always go to the Agent at open, with how the handoff card names them. */
+const HANDED_TO_AGENT: Partial<Record<DmiType, { kind: string; proof: string }>> = {
+  citizenship: { kind: "Citizenship", proof: "proof of citizenship" },
+  immigration: { kind: "Immigration", proof: "proof of immigration status" },
+};
+
 /** A citizenship or immigration DMI always goes to the Agent; the Client hears nothing from the Assistant. */
-async function escalateAtOpen(dmi: Dmi, client: Client, { store, now }: RunDeps): Promise<void> {
+async function escalateAtOpen({ kind, proof }: { kind: string; proof: string }, client: Client, { store, now }: RunDeps): Promise<void> {
   const already = store
     .list("escalations")
     .some((e) => e.clientId === client.id && e.status === "open" && e.trigger === "citizenship_or_immigration_dmi");
   if (already) return;
-  const kind = dmi.type === "citizenship" ? "Citizenship" : "Immigration";
-  const proof = dmi.type === "citizenship" ? "proof of citizenship" : "proof of immigration status";
   await toolsFor({ store, now }).escalate_to_agent({
     clientId: client.id,
     trigger: "citizenship_or_immigration_dmi",

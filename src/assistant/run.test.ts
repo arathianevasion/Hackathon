@@ -121,6 +121,22 @@ describe("runAssistant on dmi.detected", () => {
     ]);
   });
 
+  it("escalates an immigration DMI at open in its own words", async () => {
+    const seeded = store.list("escalations").find((e) => e.clientId === "client-06")!;
+    store.update("escalations", { ...seeded, status: "handled", handledAt: NOW.toISOString() });
+    const dmi = store.list("dmis").find((d) => d.id === "dmi-06")!;
+    store.update("dmis", { ...dmi, type: "immigration" });
+    await runAssistant({ name: "dmi.detected", clientId: "client-06", dmiId: "dmi-06" }, { store, now: () => NOW, model: scriptedModel().client });
+    expect(store.list("escalations").filter((e) => e.clientId === "client-06" && e.status === "open")).toMatchObject([
+      {
+        trigger: "citizenship_or_immigration_dmi",
+        summary: "Immigration DMIs always go to you. The Assistant has not contacted Tomasz.",
+        suggestedNextStep: "Contact Tomasz yourself about proof of immigration status.",
+      },
+    ]);
+    expect(thread("client-06")).toEqual([]);
+  });
+
   it("raises no second citizenship Escalation while one is open, and never texts that Client, even when they text in", async () => {
     const model = scriptedReplyModel();
     const deps = { store, now: () => NOW, model: model.client };
