@@ -34,6 +34,12 @@ function daysLeftLabel(days: number | null): string {
   return `${days} ${days === 1 ? "day" : "days"}`;
 }
 
+/** The deadline's urgency, as the prototype colours it: a week or less, then two weeks or less. */
+function daysTone(days: number | null): string {
+  if (days === null) return "";
+  return days <= 7 ? " crit" : days <= 14 ? " warn" : "";
+}
+
 function shortDate(date: string): string {
   return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
@@ -65,7 +71,8 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
           <h1>Your Enrollment Follow-ups</h1>
           <p className="muted">Synthetic data only. Clients ranked by DMI deadline.</p>
         </div>
-        <form action={fastForwardDemo}>
+        <div className="controls">
+        <form action={fastForwardDemo} className="fast-forward">
           <label>
             Fast-forward{" "}
             <select name="days" defaultValue="1">
@@ -74,32 +81,33 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
               <option value="7">7 days</option>
             </select>
           </label>{" "}
-          <button type="submit">Go</button>
+          <button type="submit" className="primary">Go</button>
         </form>
         <form action={resetDemo}>
           <button type="submit">Reset demo</button>
         </form>
+        </div>
       </header>
 
       <div className={showPhone ? "layout" : "layout no-phone"}>
         <section className="queue" aria-label="Clients by deadline">
           <div className="row head" role="row">
-            <span>Client</span>
-            <span>DMI</span>
-            <span>Days left</span>
+            <span className="label">Client</span>
+            <span className="label">DMI</span>
+            <span className="label">Days left</span>
           </div>
           {rows.map((row) => (
-            <div className="row" role="row" key={row.clientId}>
+            <div className={row.clientId === selectedId ? "row sel" : "row"} role="row" key={row.clientId}>
               <Link className="name" href={`/?client=${row.clientId}`} aria-current={row.clientId === selectedId ? "true" : undefined}>
                 {row.name}
               </Link>
-              <span>
+              <span className="dmi">
                 {DMI_LABEL[row.dmiType]}
-                {row.dmiStatus === "documents_submitted" && <span className="chip"> Submitted</span>}
+                {row.dmiStatus === "documents_submitted" && <span className="chip info"> Submitted</span>}
               </span>
-              <span className="days">
+              <span className={`days${daysTone(row.daysLeft)}`}>
                 {daysLeftLabel(row.daysLeft)}
-                {row.daysLeft !== null && <span className="muted"> · {shortDate(row.deadline)}</span>}
+                {row.daysLeft !== null && <span className="date"> · {shortDate(row.deadline)}</span>}
               </span>
             </div>
           ))}
@@ -126,8 +134,8 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
             ) : (
               <ol className="thread">
                 {thread.map((m) => (
-                  <li key={m.id}>
-                    <span className="muted">
+                  <li key={m.id} className={`msg ${m.sender}`}>
+                    <span className="who">
                       {m.sender === "assistant" ? "Assistant" : m.sender === "agent" ? "You" : selected.firstName} · {timeLabel(m.sentAt)}
                     </span>
                     <p>{m.text}</p>
@@ -143,7 +151,7 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
               <ul className="notes">
                 {notifications.map((n) => (
                   <li key={n.id}>
-                    {NOTIFICATION_LABEL[n.event]} <span className="muted">· {timeLabel(n.at)}</span>
+                    {NOTIFICATION_LABEL[n.event]} <span className="when">· {timeLabel(n.at)}</span>
                   </li>
                 ))}
               </ul>
@@ -165,7 +173,7 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
                 <tbody>
                   {actionLog.map((e) => (
                     <tr key={e.id}>
-                      <td>{e.tool}</td>
+                      <td className="tool">{e.tool}</td>
                       <td>{e.consentRecordId ?? "None"}</td>
                       <td>{e.result}</td>
                       <td>{timeLabel(e.at)}</td>
