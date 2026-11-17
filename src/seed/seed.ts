@@ -114,7 +114,7 @@ export function buildSeed(runDate: Date): SeedData {
   const today = toIsoDate(runDate);
   const daysAgo = (n: number): IsoDateTime => new Date(runDate.getTime() - n * DAY_MS).toISOString();
 
-  const agent: Agent = { id: "agent-1", firstName: "Andrew", lastName: "Example" };
+  const agent: Agent = { id: "agent-1", firstName: "Kalyani", lastName: "Example" };
   const seed: SeedData = {
     agent,
     clients: [],

@@ -40,7 +40,7 @@ function textRosaALink(): string {
   return link.url.slice(PORTAL_LINK_BASE.length);
 }
 
-const income = { firstName: "Rosa", dmiType: "income" as const, due: "Dec 2", copy: uploadPageCopy("income"), attempt: 0 };
+const income = { agentFirstName: "Kalyani", firstName: "Rosa", dmiType: "income" as const, due: "Dec 2", copy: uploadPageCopy("income"), attempt: 0 };
 const fixes = { title: "2 things to fix", fixes: ["Your name: the top of the stub is cut off"], closing: "Retake the photo." };
 const STATES: Record<string, UploadPageState> = {
   open: { kind: "open", ...income, fixes: null },
@@ -48,7 +48,7 @@ const STATES: Record<string, UploadPageState> = {
   later: { kind: "later", ...income, fixes: null },
   submitted: { kind: "submitted", ...income, fixes: null },
   expired: { kind: "expired" },
-  paused: { kind: "paused", agentFirstName: "Andrew" },
+  paused: { kind: "paused", agentFirstName: "Kalyani" },
   ssn: { kind: "open", ...income, dmiType: "ssn", copy: uploadPageCopy("ssn"), fixes: null },
 };
 

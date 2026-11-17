@@ -77,7 +77,7 @@ export function UploadPage({ token, state }: { token: string; state: UploadPageS
   const { copy } = state;
   const head = (
     <>
-      <div className="brand">Secure upload for Andrew&apos;s clients</div>
+      <div className="brand">Secure upload for {state.agentFirstName}&apos;s clients</div>
       <div>
         <h2 className="pg-title">{copy.title}</h2>
         <p className="due">For {state.firstName} · due <b>{state.due}</b></p>

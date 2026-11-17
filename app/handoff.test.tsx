@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { receiveClientText } from "../src/assistant/inbound";
 import { createTools } from "../src/assistant/tools";
+import { uploadPageCopy } from "../src/portal/uploadPage";
 import { openStore, type Store } from "../src/store/store";
 import { handBack, markHandled, sendAgentTextAction } from "./actions";
 import AgentView from "./page";
@@ -94,9 +95,9 @@ describe("the queue", () => {
 
 describe("the paused upload page", () => {
   it("says the agent will contact the Client and offers no upload", () => {
-    const html = renderToStaticMarkup(<UploadPage token="7Q2K" state={{ kind: "paused", agentFirstName: "Andrew" }} />);
+    const html = renderToStaticMarkup(<UploadPage token="7Q2K" state={{ kind: "paused", agentFirstName: "Kalyani" }} />);
     expect(html).toContain("Your agent will contact you");
-    expect(html).toContain("Andrew needs to talk with you first. Please don&#x27;t upload anything yet.");
+    expect(html).toContain("Kalyani needs to talk with you first. Please don&#x27;t upload anything yet.");
     expect(html).not.toContain('type="file"');
     expect(html).not.toContain("come back later");
   });
@@ -122,7 +123,7 @@ describe("the Agent in the Thread", () => {
   it("sends the text with the prefix, then shows the banner and the queue chip", async () => {
     await send(MARCUS, "Call me when you can.");
     const html = await view(MARCUS);
-    expect(html).toContain("Andrew here: Call me when you can.");
+    expect(html).toContain("Kalyani here: Call me when you can.");
     expect(html).toContain("AI Client Advocate");
     expect(html).not.toMatch(/>Assistant</);
     expect(html).toContain("The AI Client Advocate is holding its replies and nudges for this Client");
@@ -164,5 +165,13 @@ describe("the Agent in the Thread", () => {
     expect(html).toContain("opted out of texts.");
     expect(html).toContain("Opted out");
     expect(html).not.toContain('id="message-box"');
+  });
+});
+
+describe("the upload page brand line", () => {
+  it("names the Agent from the state", () => {
+    const state = { kind: "open", agentFirstName: "Kalyani", firstName: "Rosa", dmiType: "income", due: "Dec 2", copy: uploadPageCopy("income"), attempt: 0, fixes: null } as const;
+    const html = renderToStaticMarkup(<UploadPage token="7Q2K" state={state} />);
+    expect(html).toContain("Secure upload for Kalyani&#x27;s clients");
   });
 });

@@ -10,7 +10,7 @@ export interface AgentThreadDeps {
 
 /**
  * The Agent texts the Client from the Thread, at any time and whether or not an
- * Escalation is open. The text starts "Andrew here:" (the Agent's first name) so
+ * Escalation is open. The text starts "Kalyani here:" (the Agent's first name) so
  * the Client knows a person is writing. Once it goes out the Assistant holds its
  * replies and nudges for this Client until `handBackToAssistant`.
  */
