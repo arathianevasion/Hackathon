@@ -9,7 +9,7 @@ import { atRisk, filterQueue, parseFilter, QUEUE_FILTERS, queueTotals, windowUse
 import { assistantTextsAbout } from "../src/assistant/firstText";
 import { uploadPageState } from "../src/portal/uploadPage";
 import { demoClock } from "../src/cadence/demo";
-import { agentInThread } from "../src/assistant/escalations";
+import { agentInThread, pausingEscalationOpen } from "../src/assistant/escalations";
 import { fastForwardDemo, handBack, markHandled, openDmi, resetDemo, sendAgentTextAction, signOut } from "./actions";
 import { AutoRefresh } from "./AutoRefresh";
 import { PhoneSimulator } from "./PhoneSimulator";
@@ -233,7 +233,7 @@ export default async function AgentView({ searchParams }: { searchParams: Promis
               <div className="banner" aria-label="You're in the Thread">
                 <span>
                   <b>You&rsquo;re in the Thread.</b> The Assistant is holding its replies and nudges for this Client.
-                  {openEscalations.length > 0 && " An Escalation is still open, so it stays paused until you mark it handled."}
+                  {pausingEscalationOpen(store, selected.id) && " An Escalation is still open, so it stays paused until you mark it handled."}
                 </span>
                 <form action={handBack}>
                   <input type="hidden" name="clientId" value={selected.id} />

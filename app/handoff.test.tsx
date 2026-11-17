@@ -121,6 +121,14 @@ describe("the Agent in the Thread", () => {
     expect(html).toContain("You&#x27;re in the Thread");
   });
 
+  it("doesn't say the Assistant stays paused when the only open Escalation is a Client's ask about another topic", async () => {
+    const tools = createTools({ store, now: () => new Date(), extract: () => Promise.reject(new Error("none")) });
+    for (const e of store.list("escalations")) store.update("escalations", { ...e, status: "handled", handledAt: e.raisedAt });
+    await tools.escalate_to_agent({ clientId: MARCUS, trigger: "client_asked_for_agent", summary: "Asks about dental.", clientWords: "Dental?", suggestedNextStep: null });
+    await send(MARCUS, "Hi");
+    expect(await view(MARCUS)).not.toContain("stays paused until you mark it handled");
+  });
+
   it("Hand back clears the banner and the chip", async () => {
     await send(MARCUS, "Hi");
     const form = new FormData();

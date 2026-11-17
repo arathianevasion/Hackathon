@@ -240,7 +240,7 @@ function replyEscalationTool(
   return betaZodTool({
     name: "escalate_to_agent",
     description:
-      "Hands this client to their agent, who must act. You are paused for this client afterwards. Any text the client needs is sent for you; do not send one yourself.",
+      "Hands this client to their agent, who must act. Any text the client needs is sent for you; do not send one yourself.",
     inputSchema: z.object({
       trigger: z.enum(triggers),
       summary: z.string().min(1).max(400).describe("One or two sentences for the agent on what the client said. No advice."),

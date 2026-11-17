@@ -497,7 +497,7 @@ describe("runAssistant on client.message", () => {
       await reply(ROSA, DENTAL, model);
       await reply(ROSA, "yes", model);
       const nudgeAt = nextNudgeAt(store, ROSA);
-      markEscalationHandled(store, escalations()[0].id, NOW);
+      markEscalationHandled(store, escalations()[0].id, new Date(NOW.getTime() + 3_600_000));
       expect(escalations()[0].status).toBe("handled");
       expect(nextNudgeAt(store, ROSA)).toEqual(nudgeAt);
     });

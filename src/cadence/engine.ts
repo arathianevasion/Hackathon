@@ -1,6 +1,6 @@
 import type { ClientId, Dmi, DmiId, DmiType, Escalation, IsoDateTime, Message } from "../contract";
 import { assistantTextsAbout, dueDateLabel } from "../assistant/firstText";
-import { isPaused, lastHandBackAt } from "../assistant/escalations";
+import { isPaused, lastHandBackAt, pausesAssistant } from "../assistant/escalations";
 import type { Tools } from "../assistant/tools";
 import { finishMarketplaceReviews } from "../marketplace/marketplace";
 import { PortalLinkLimitError } from "../portal/portalLink";
@@ -44,7 +44,8 @@ function lastContact(thread: Message[], escalations: Escalation[], handedBack: n
   const first = thread.find((m) => m.sender === "assistant");
   const base = fromClient ?? first;
   if (!base) return null;
-  const handed = escalations.flatMap((e) => (e.handledAt ? [Date.parse(e.handledAt)] : []));
+  // Handling an Escalation that never paused the Assistant changes nothing about its schedule.
+  const handed = escalations.flatMap((e) => (e.handledAt && pausesAssistant(e.trigger) ? [Date.parse(e.handledAt)] : []));
   return Math.max(Date.parse(base.sentAt), ...handed, handedBack ?? 0);
 }
 
