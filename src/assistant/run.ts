@@ -8,6 +8,7 @@ import { extractFields, FALLBACK_BETA, type ExtractionClient } from "../document
 import type { Store } from "../store/store";
 import { assistantTextsAbout, firstText, PORTAL_LINK_SLOT } from "./firstText";
 import { isPaused } from "./escalations";
+import { optKeyword } from "./optOut";
 import { applicationChangeText, CLARIFYING_QUESTION, QUIET_DAYS_FOR_DISCLOSURE, quietDays, replyTexts, SSN_MASK } from "./replies";
 import { createTools } from "./tools";
 import { nextNudgeAt } from "../cadence/engine";
@@ -52,6 +53,8 @@ export async function runAssistant(event: DomainEvent, deps: RunDeps): Promise<v
   if (event.name === "dmi.detected") return openDmi(event, deps);
   // escalate_to_agent pauses the Assistant for this Client until the Agent marks the Escalation handled.
   if (isPaused(deps.store, event.clientId)) return;
+  // STOP and START were applied when the text arrived (receiveClientText); the Assistant sends no reply to either.
+  if (event.name === "client.message" && optKeyword(deps.store.list("messages").find((m) => m.id === event.messageId)?.text ?? "")) return;
   if (event.name === "client.message") return answerClient(event, deps);
   if (event.name === "document.uploaded") return checkUpload(event, deps);
   throw new Error(`The Assistant does not handle ${event.name} yet`);

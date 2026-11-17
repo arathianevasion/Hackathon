@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { receiveClientText } from "../src/assistant/inbound";
 import { createTools } from "../src/assistant/tools";
 import { openStore, type Store } from "../src/store/store";
 import { handBack, markHandled, sendAgentTextAction } from "./actions";
@@ -123,5 +124,13 @@ describe("the Agent in the Thread", () => {
     expect(html).not.toContain('id="message-box"');
     expect(html).not.toContain('name="text"');
     expect(html).toContain(`opted out of texts. Call ${marcus.phone} instead.`);
+  });
+
+  it("shows the opt-out and its Notification after the Client texts STOP", async () => {
+    receiveClientText({ store, now: () => new Date() }, MARCUS, "STOP");
+    const html = await view(MARCUS);
+    expect(html).toContain("opted out of texts.");
+    expect(html).toContain("Opted out");
+    expect(html).not.toContain('id="message-box"');
   });
 });
