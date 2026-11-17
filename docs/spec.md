@@ -130,7 +130,7 @@ The Assistant acts only under a checked Consent record, and hands the Agent anyt
 | Citizenship or immigration DMI | DMI resolved |
 | Tax, immigration or legal advice request, or low confidence | Opt-out or consent rescinded (Assistant already stopped) |
 | Document insufficient twice, or still ambiguous after one question | 3 Portal links sent in 24 hours |
-| SSN or name mismatch with the application | Client came back after a silence Escalation (by text or upload) |
+| SSN or name mismatch with the application |  |
 | Suspected fraud or inconsistent documents |  |
 | Client silent through the nudge schedule |  |
 
