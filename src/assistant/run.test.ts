@@ -408,7 +408,7 @@ describe("runAssistant on client.message", () => {
     const linkOf = (clientId: string) => store.list("portalLinks").find((l) => l.clientId === clientId)!.url;
     const escalations = (clientId: string) => store.list("escalations").filter((e) => e.clientId === clientId);
 
-    it.each(["What does this mean?", "I don't understand", "what is this?"])("answers %j with the income explainer, no Escalation", async (typed) => {
+    it.each(["What does this mean?", "I don't understand", "what is this?", "is this a scam?"])("answers %j with the income explainer, no Escalation", async (typed) => {
       firstText(ROSA);
       await reply(ROSA, typed, scriptedReplyModel());
       expect(thread(ROSA).at(-1)!.text).toBe(INCOME(linkOf(ROSA)));
@@ -434,7 +434,7 @@ describe("runAssistant on client.message", () => {
       expect(thread(ROSA).at(-1)!.text).toMatch(/^It's a routine check\./);
     });
 
-    it("still escalates a tax question as advice_or_low_confidence", async () => {
+    it("still escalates a request for legal advice as advice_or_low_confidence", async () => {
       firstText(ROSA);
       await reply(ROSA, "Do I need a lawyer for this?", scriptedReplyModel());
       expect(escalations(ROSA).map((e) => e.trigger)).toEqual(["advice_or_low_confidence"]);

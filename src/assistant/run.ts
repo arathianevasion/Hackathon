@@ -393,7 +393,7 @@ async function answerClient(event: Extract<DomainEvent, { name: "client.message"
         `dmi_id: ${dmi.id}`,
         "Pick the one reply that fits and send it:",
         "- why: they ask why they are being asked or why the Marketplace needs this.",
-        '- explain: they are confused about the texts or the DMI (for example "what does this mean", "I don\'t understand", "what is this about", "is this a scam"). This is not low confidence.',
+        '- explain: they are confused about the texts or the DMI (for example "what does this mean", "I don\'t understand", "I don\'t get it", "what is this about", "is this a scam"). This is not low confidence.',
         "- disclosure: they ask whether you are an AI, a bot or a person.",
         "- unrelated: they ask about something unrelated to this DMI (for example dental coverage, a bill or a different policy).",
         ...(texts.later ? ["- later: they say they will come back to it later, not now, or need time to find the document."] : []),
