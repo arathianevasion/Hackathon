@@ -26,10 +26,10 @@ function SpecimenStub() {
  */
 export function UploadPage({ token, state }: { token: string; state: UploadPageState }) {
   const form = useRef<HTMLFormElement>(null);
-  const [choice, setChoice] = useState(state.kind === "expired" ? "" : state.copy.choices[0].label);
+  const [choice, setChoice] = useState(state.kind === "expired" || state.kind === "paused" ? "" : state.copy.choices[0].label);
   // Sending lasts until the page's attempt count moves on, i.e. the upload has been checked.
   const [sendingAt, setSendingAt] = useState<number | null>(null);
-  const attempt = state.kind === "expired" ? 0 : state.attempt;
+  const attempt = state.kind === "expired" || state.kind === "paused" ? 0 : state.attempt;
   const sending = sendingAt === attempt;
 
   if (state.kind === "expired") {
@@ -38,6 +38,18 @@ export function UploadPage({ token, state }: { token: string; state: UploadPageS
         <div className="status crit">
           <span className="t">This link has expired.</span>
           <span>Reply to our text and we&apos;ll send you a new one.</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (state.kind === "paused") {
+    // Variant D's paused page, verbatim: no upload controls at all.
+    return (
+      <div className="pg">
+        <div className="status info">
+          <span className="t">Your agent will contact you</span>
+          <span>{state.agentFirstName} needs to talk with you first. Please don&apos;t upload anything yet.</span>
         </div>
       </div>
     );

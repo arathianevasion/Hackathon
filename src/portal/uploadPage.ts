@@ -1,3 +1,4 @@
+import { isPaused } from "../assistant/escalations";
 import { dueDateLabel } from "../assistant/firstText";
 import type { DmiType } from "../contract";
 import { guidanceFor, type Guidance } from "../documents/guidance";
@@ -66,6 +67,8 @@ export type UploadPageState =
       /** How many uploads this DMI has had, so the page knows when a new one has been checked. */
       attempt: number;
     }
+  /** An Escalation is open: the Agent will contact the Client, so the page asks for no upload. */
+  | { kind: "paused"; agentFirstName: string }
   | { kind: "expired" };
 
 /** The upload page for a Portal link token, inside its upload session; anything else reads as expired. */
@@ -76,6 +79,8 @@ export function uploadPageState(store: Store, token: string, at: Date): UploadPa
   const dmi = store.list("dmis").find((d) => d.id === link.dmiId);
   const client = store.list("clients").find((c) => c.id === link.clientId);
   if (!dmi || !client) return { kind: "expired" };
+  const agent = store.agent();
+  if (agent && isPaused(store, client.id)) return { kind: "paused", agentFirstName: agent.firstName };
   const uploads = store.list("documents").filter((d) => d.dmiId === dmi.id);
   const latest = uploads.at(-1);
   return {

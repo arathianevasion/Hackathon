@@ -167,7 +167,7 @@ describe("the cadence engine", () => {
     it("shows resolved in the Agent's queue", async () => {
       submit("dmi-01");
       await fastForward(deps, 1);
-      const row = rankByDeadline(store.list("clients"), store.list("dmis"), "2026-11-17").find((r) => r.clientId === ROSA)!;
+      const row = rankByDeadline(store.list("clients"), store.list("dmis"), "2026-11-17", store.list("escalations")).find((r) => r.clientId === ROSA)!;
       expect(row).toMatchObject({ dmiStatus: "resolved", daysLeft: null });
     });
   });

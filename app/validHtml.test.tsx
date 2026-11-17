@@ -47,6 +47,7 @@ const STATES: Record<string, UploadPageState> = {
   later: { kind: "later", ...income, fixes: null },
   submitted: { kind: "submitted", ...income, fixes: null },
   expired: { kind: "expired" },
+  paused: { kind: "paused", agentFirstName: "Andrew" },
   ssn: { kind: "open", ...income, dmiType: "ssn", copy: uploadPageCopy("ssn"), fixes: null },
 };
 

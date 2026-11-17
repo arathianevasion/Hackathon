@@ -100,6 +100,7 @@ select:hover { border-color: var(--accent); }
 
 .chip { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-sm); white-space: nowrap; }
 .chip.info { background: var(--info-soft); color: var(--info); }
+.chip.crit { background: var(--crit-soft); color: var(--crit); }
 
 /* ---------- Agent view (variant A) ---------- */
 .page {
@@ -296,3 +297,10 @@ details p { margin-top: 6px; font-size: 13px; }
 .drop .status { width: 100%; text-align: left; }
 .button.later { display: block; width: 100%; padding: 8px 12px; background: transparent; }
 .button.later:hover { background: var(--royal-light-1); }
+
+/* The handoff card for an open Escalation (Agent view prototype, variant A). */
+.handoff { border: 1px solid var(--crit); background: var(--crit-soft); border-radius: var(--radius-md); padding: 12px; display: grid; gap: 8px; margin-bottom: 16px; }
+.handoff .label { color: var(--crit); }
+.handoff p { margin: 0; }
+.handoff .quote { margin: 0; padding-left: 10px; border-left: 3px solid var(--crit); font-style: italic; }
+.handoff form { display: flex; gap: 8px; }
