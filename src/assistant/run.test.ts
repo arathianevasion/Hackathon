@@ -347,6 +347,15 @@ describe("runAssistant on document.uploaded", () => {
     expect(store.list("actionLog").at(-1)).toMatchObject({ tool: "escalate_to_agent" });
   });
 
+  it("raises no second Escalation while one is open, and sends no fixes either", async () => {
+    await rosaUploads(scriptedUploadModel(CROPPED));
+    await rosaUploads(scriptedUploadModel(CROPPED));
+    const texts = afterFirst().length;
+    await rosaUploads(scriptedUploadModel(CROPPED));
+    expect(store.list("escalations").filter((e) => e.clientId === ROSA)).toHaveLength(1);
+    expect(afterFirst()).toHaveLength(texts);
+  });
+
   it("does not send fixes for a name mismatch with the application: that is not a retake", async () => {
     await rosaUploads(scriptedUploadModel({ ...FULL_STUB, name: "Someone Else" }));
     expect(afterFirst()).toEqual([]);

@@ -116,6 +116,8 @@ async function followUpInsufficient(event: Extract<DomainEvent, { name: "documen
   const insufficient = store
     .list("documents")
     .filter((d) => d.dmiId === event.dmiId && d.precheck.result === "insufficient" && guidanceFor(d.precheck.reasons) !== null);
+  // Once an Escalation is open the Assistant is paused for this Client: nothing more goes out.
+  if (store.list("escalations").some((e) => e.clientId === event.clientId && e.status === "open")) return;
   if (insufficient.length < 2) {
     await tools.send_text({ clientId: event.clientId, text: guidanceText(guidance) });
     return;
