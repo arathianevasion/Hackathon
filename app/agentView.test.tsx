@@ -71,7 +71,7 @@ describe("the header", () => {
   it("names the product and the Agent", async () => {
     const html = await view();
     expect(html).toMatch(/<h1>Integrity Client Advocate<\/h1>/);
-    expect(html).toContain("Andrew");
+    expect(html).toContain("Kalyani");
   });
 });
 

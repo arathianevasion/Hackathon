@@ -59,6 +59,8 @@ export type UploadPageState =
   | {
       kind: "open" | "submitted" | "later";
       firstName: string;
+      /** The Agent's first name, for the page's brand line. */
+      agentFirstName: string;
       dmiType: DmiType;
       due: string;
       copy: UploadPageCopy;
@@ -86,6 +88,7 @@ export function uploadPageState(store: Store, token: string, at: Date): UploadPa
   return {
     kind: link.closedAt ? "later" : dmi.status === "documents_submitted" ? "submitted" : "open",
     firstName: client.firstName,
+    agentFirstName: agent?.firstName ?? "your agent",
     dmiType: dmi.type,
     due: dueDateLabel(dmi.deadline),
     copy: uploadPageCopy(dmi.type),

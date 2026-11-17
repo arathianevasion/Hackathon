@@ -24,7 +24,7 @@ describe("uploadPageState", () => {
   it("gives the page only the first name, DMI type and due date, plus variant D's words", () => {
     const state = uploadPageState(store, opened(), NOW);
     expect(state).toMatchObject({ kind: "open", firstName: "Rosa", dmiType: "income", due: "Nov 26" });
-    expect(Object.keys(state).sort()).toEqual(["attempt", "copy", "dmiType", "due", "firstName", "fixes", "kind"]);
+    expect(Object.keys(state).sort()).toEqual(["agentFirstName", "attempt", "copy", "dmiType", "due", "firstName", "fixes", "kind"]);
     const everything = JSON.stringify(state);
     for (const secret of ["Delgado-Finch", "555-01", "DEMO-APP", "CR-1041", "Demo Silver", "40,000", "40000", "900-"]) expect(everything).not.toContain(secret);
   });
@@ -123,7 +123,7 @@ describe("uploadPageState", () => {
     const token = opened();
     const tools = createTools({ store, now: () => NOW, extract: () => Promise.reject(new Error("none")) });
     await tools.escalate_to_agent({ clientId: ROSA, trigger: "income_or_application_change", summary: "s", clientWords: null, suggestedNextStep: null });
-    expect(uploadPageState(store, token, NOW)).toEqual({ kind: "paused", agentFirstName: "Andrew" });
+    expect(uploadPageState(store, token, NOW)).toEqual({ kind: "paused", agentFirstName: "Kalyani" });
   });
 });
 
@@ -135,7 +135,7 @@ describe("feedbackKey", () => {
     expect(feedbackKey(open(1, fixes))).not.toBe(feedbackKey(open(2, fixes)));
   });
   it("is set for the escalated page and null when there is no feedback", () => {
-    expect(feedbackKey({ kind: "paused", agentFirstName: "Andrew" })).not.toBeNull();
+    expect(feedbackKey({ kind: "paused", agentFirstName: "Kalyani" })).not.toBeNull();
     expect(feedbackKey(open(1, null))).toBeNull();
     expect(feedbackKey({ kind: "expired" })).toBeNull();
   });
