@@ -93,3 +93,13 @@ export function uploadPageState(store: Store, token: string, at: Date): UploadPa
     attempt: uploads.length,
   };
 }
+
+/**
+ * Changes whenever a rejected upload has left something to show (the fixes, or
+ * the escalated page), so the page knows to scroll to it; null when there is nothing.
+ */
+export function feedbackKey(state: UploadPageState): string | null {
+  if (state.kind === "paused") return "paused";
+  if (state.kind === "open" && state.fixes) return `fixes-${state.attempt}`;
+  return null;
+}

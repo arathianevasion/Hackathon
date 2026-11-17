@@ -31,6 +31,7 @@ const TRIGGER_LABEL: Record<EscalationTrigger, string> = {
   citizenship_or_immigration_dmi: "Citizenship or immigration DMI, always handed to the Agent",
   advice_or_low_confidence: "Advice request, or the Assistant wasn't sure",
   insufficient_twice: "Document insufficient twice",
+  name_or_ssn_mismatch: "Name or SSN doesn't match the application",
   suspected_fraud: "Suspected fraud or inconsistent documents",
   silence: "No response after initial text and nudge",
 };

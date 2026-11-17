@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
-import type { UploadPageState } from "../src/portal/uploadPage";
+import { useEffect, useRef, useState } from "react";
+import { feedbackKey, type UploadPageState } from "../src/portal/uploadPage";
 import { comeBackLaterAction, uploadDocument } from "./actions";
+import { scrollFeedbackIntoView } from "./scrollToTop";
 
 /** The SPECIMEN pay stub example from variant D, with the parts a photo must show highlighted. */
 function SpecimenStub() {
@@ -31,6 +32,12 @@ export function UploadPage({ token, state }: { token: string; state: UploadPageS
   const [sendingAt, setSendingAt] = useState<number | null>(null);
   const attempt = state.kind === "expired" || state.kind === "paused" ? 0 : state.attempt;
   const sending = sendingAt === attempt;
+  // Each rejected upload scrolls to its feedback: the fixes panel, or the escalated page.
+  const page = useRef<HTMLDivElement>(null);
+  const feedback = feedbackKey(state);
+  useEffect(() => {
+    if (feedback && page.current) scrollFeedbackIntoView(page.current, window);
+  }, [feedback]);
 
   if (state.kind === "expired") {
     return (
@@ -46,7 +53,7 @@ export function UploadPage({ token, state }: { token: string; state: UploadPageS
   if (state.kind === "paused") {
     // Variant D's paused page, verbatim: no upload controls at all.
     return (
-      <div className="pg">
+      <div className="pg" ref={page}>
         <div className="status info">
           <span className="t">Your agent will contact you</span>
           <span>{state.agentFirstName} needs to talk with you first. Please don&apos;t upload anything yet.</span>
@@ -97,7 +104,7 @@ export function UploadPage({ token, state }: { token: string; state: UploadPageS
   };
 
   return (
-    <div className="pg">
+    <div className="pg" ref={page}>
       {head}
       {state.fixes && !sending && (
         <div className="status warn" role="alert">

@@ -9,6 +9,8 @@ export interface Guidance {
   fixes: string[];
   /** What to send instead. */
   closing: string;
+  /** How the text opens when it isn't the photo being checked ("I checked your document."); the photo wording when absent. */
+  lead?: string;
 }
 
 const FIELDS = Object.keys(FIELD_LABEL) as RequiredField[];
@@ -25,16 +27,22 @@ const MISSING: Record<RequiredField, { cropped: string; plain: string }> = {
 };
 
 const RETAKE = "Retake the photo with the whole stub in the frame, flat and in good light.";
+const MISMATCH_FIX = "This document doesn't appear to be yours: the name or Social Security number doesn't match your application.";
+const MISMATCH_CLOSING = "Upload one of the documents listed below that shows your name.";
 const OTHER_DOCUMENT = "Choose one of the documents listed on the page.";
+
+/** True when a Document failed on who it belongs to: a name or SSN that doesn't match the application. */
+export function isMismatch(reasons: string[]): boolean {
+  return reasons.some((r) => r === REASON.nameMismatch || r.startsWith(REASON.ssnMismatchPrefix));
+}
 
 /**
  * Writes the fixes from the failed rules' reasons (`Judgement.reasons`): nothing
- * here decides pass or fail. Null when the Document failed on who it belongs to
- * (a name or SSN that doesn't match the application): that is for the Agent,
- * not another upload.
+ * here decides pass or fail. A name or SSN mismatch is one fixed fix that never
+ * says whose name or number is on the Document. Null only when there are no reasons.
  */
 export function guidanceFor(reasons: string[]): Guidance | null {
-  if (reasons.some((r) => r === REASON.nameMismatch || r.startsWith(REASON.ssnMismatchPrefix))) return null;
+  if (isMismatch(reasons)) return { title: "1 thing to fix", fixes: [MISMATCH_FIX], closing: MISMATCH_CLOSING, lead: "I checked your document." };
   if (reasons.length === 0) return null;
   const cropped = reasons.includes(REASON.cropped);
   const photo: string[] = [REASON.cropped, REASON.illegible];
@@ -53,6 +61,6 @@ export function guidanceFor(reasons: string[]): Guidance | null {
 }
 
 /** The same fixes as a text to the Client; it points back to the page's link without repeating it. */
-export function guidanceText({ title, fixes, closing }: Guidance): string {
-  return `I checked your photo. ${title}:\n${fixes.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n\n${closing} Same link.`;
+export function guidanceText({ title, fixes, closing, lead = "I checked your photo." }: Guidance): string {
+  return `${lead} ${title}:\n${fixes.map((f, i) => `${i + 1}. ${f}`).join("\n")}\n\n${closing} Same link.`;
 }
