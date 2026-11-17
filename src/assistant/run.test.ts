@@ -577,6 +577,13 @@ describe("runAssistant on document.uploaded", () => {
       expect(open()).toEqual([]);
     });
 
+    it("holds the text when the Client has opted out", async () => {
+      const rosa = store.list("clients").find((c) => c.id === ROSA)!;
+      store.update("clients", { ...rosa, optedOutAt: NOW.toISOString() });
+      await rosaUploads(scriptedUploadModel(MISMATCH));
+      expect(afterFirst()).toEqual([]);
+    });
+
     it("escalates name_or_ssn_mismatch on the third failed upload, with no text", async () => {
       await rosaUploads(scriptedUploadModel(MISMATCH));
       await rosaUploads(scriptedUploadModel(MISMATCH));
@@ -584,7 +591,7 @@ describe("runAssistant on document.uploaded", () => {
       expect(afterFirst()).toHaveLength(2);
       expect(open()).toHaveLength(1);
       expect(open()[0]).toMatchObject({ trigger: "name_or_ssn_mismatch" });
-      expect(open()[0].summary).toContain("mismatch");
+      expect(open()[0].summary).toContain("doesn't match the application");
       expect(open()[0].suggestedNextStep).toBe("Call Rosa to confirm whose document it is.");
       expect(JSON.stringify(open())).not.toContain("Someone Else");
     });
